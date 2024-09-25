@@ -3,7 +3,7 @@ import { db } from '@/lib/database';
 import { NotFoundException, UnauthorizedException } from '@/lib/exceptions';
 import { handleAsync } from '@/middlewares/handle-async';
 import { users } from '@/schemas/users.schema';
-import { and, desc, eq, like, lt, or } from 'drizzle-orm';
+import { desc, eq, like, or } from 'drizzle-orm';
 
 export const getProfile = handleAsync(async (req, res) => {
   if (!req.user) throw new UnauthorizedException();
@@ -30,17 +30,14 @@ export const getUserDetails = handleAsync<{ id: string }>(async (req, res) => {
 });
 
 export const queryUsers = handleAsync(async (req, res) => {
-  const { q, limit, cursor } = queryUsersSchema.parse(req.query);
+  const { q, limit, page } = queryUsersSchema.parse(req.query);
+  const offset = (page - 1) * limit;
   const result = await db
     .select()
     .from(users)
-    .where(
-      and(
-        or(like(users.name, `%${q}%`), like(users.email, `%${q}%`)),
-        cursor ? lt(users.name, cursor) : undefined
-      )
-    )
+    .where(or(like(users.name, `%${q}%`), like(users.email, `%${q}%`)))
     .limit(limit)
+    .offset(offset)
     .orderBy((t) => desc(t.name));
 
   return res.json({ users: result });

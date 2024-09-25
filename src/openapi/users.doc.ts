@@ -1,4 +1,5 @@
-import { updateProfileSchema } from '@/dtos/users.dto';
+import { queryUsersSchema, updateProfileSchema } from '@/dtos/users.dto';
+import { z } from 'zod';
 import { ZodOpenApiPathsObject } from 'zod-openapi';
 import 'zod-openapi/extend';
 
@@ -33,6 +34,33 @@ export const usersDoc: ZodOpenApiPathsObject = {
         200: { description: 'Profile updated successfully' },
         400: { description: 'Invalid request body payload' },
         401: { description: 'User is not authenticated' }
+      }
+    }
+  },
+  '/api/users/{id}': {
+    get: {
+      tags,
+      summary: 'Get user details',
+      requestParams: {
+        path: z.object({ id: z.string() }).openapi({ description: 'User id' })
+      },
+      responses: {
+        200: { description: 'User details fetched successfully' }
+      }
+    }
+  },
+  '/api/users': {
+    get: {
+      tags,
+      summary: 'Search users',
+      description: 'Search users by name or email with cursor',
+      requestParams: {
+        query: queryUsersSchema
+      },
+      responses: {
+        200: {
+          description: 'Search results fetched successfully'
+        }
       }
     }
   }
