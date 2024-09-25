@@ -19,7 +19,7 @@ export const placeBid = handleAsync<{ id: string }>(async (req, res) => {
 
   const auctionId = req.params.id;
   const [auction] = await db
-    .select({ currentBid: max(bids.amount), minBid: auctions.minBid })
+    .select({ currentBid: max(bids.amount), minBid: auctions.minBid, startsAt: auctions.startsAt })
     .from(auctions)
     .innerJoin(
       participants,
@@ -41,6 +41,8 @@ export const placeBid = handleAsync<{ id: string }>(async (req, res) => {
   const { amount } = placeBidSchema.parse(req.body);
   const currentBid = auction.currentBid || auction.minBid;
   if (amount < currentBid) throw new BadRequestException(`Bid must be higher than ${currentBid}`);
+  const isAuctionEnded = Date.now() + 60 * 60 * 1000 > new Date(auction.startsAt).getTime();
+  if (isAuctionEnded) throw new BadRequestException('Auction is already ended');
 
   await db.insert(bids).values({ amount, auctionId, bidderId: req.user.id });
   return res.json({ message: 'Bid placed successfully' });
