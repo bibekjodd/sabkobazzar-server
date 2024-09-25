@@ -67,7 +67,6 @@ export const leaveAuction = handleAsync<{ id: string }>(async (req, res) => {
 export const kickParticipant = handleAsync<{ auctionId: string; userId: string }>(
   async (req, res) => {
     if (!req.user) throw new UnauthorizedException();
-    if (req.user.role === 'admin') throw new ForbiddenException("Admins can't perform this action");
 
     const auctionId = req.params.auctionId;
     const userId = req.params.userId;
@@ -77,7 +76,6 @@ export const kickParticipant = handleAsync<{ auctionId: string; userId: string }
       .where(
         and(
           eq(auctions.id, auctionId),
-          eq(auctions.ownerId, req.user.id),
           eq(auctions.isFinished, false),
           eq(auctions.isCancelled, false)
         )
@@ -86,6 +84,9 @@ export const kickParticipant = handleAsync<{ auctionId: string; userId: string }
     if (!auction) throw new NotFoundException('Auction does not exist');
     const isStarted = Date.now() >= new Date(auction.startsAt).getTime();
     if (isStarted) throw new ForbiddenException("Can't kick bidder after the auction has started");
+
+    if (!(req.user.role === 'admin' || req.user.id === auction.ownerId))
+      throw new ForbiddenException('Only admin or product owner can kick the participant');
 
     await db
       .delete(participants)

@@ -1,6 +1,6 @@
 import { createProductSchema, queryProductsSchema } from '@/dtos/products.dto';
 import { db } from '@/lib/database';
-import { ForbiddenException, UnauthorizedException } from '@/lib/exceptions';
+import { ForbiddenException, NotFoundException, UnauthorizedException } from '@/lib/exceptions';
 import { handleAsync } from '@/middlewares/handle-async';
 import { products, selectProductSnapshot } from '@/schemas/products.schema';
 import { selectUserSnapshot, users } from '@/schemas/users.schema';
@@ -16,7 +16,7 @@ export const createProduct = handleAsync(async (req, res) => {
     .values({ ...data, ownerId: req.user.id })
     .returning();
 
-  return res.json({ product: createdProduct, message: 'Product added successfully' });
+  return res.status(201).json({ product: createdProduct, message: 'Product added successfully' });
 });
 
 export const queryProducts = handleAsync(async (req, res) => {
@@ -41,4 +41,16 @@ export const queryProducts = handleAsync(async (req, res) => {
     .limit(limit);
 
   return res.json({ products: result });
+});
+
+export const getProductDetails = handleAsync<{ id: string }>(async (req, res) => {
+  const productId = req.params.id;
+  const [product] = await db
+    .select({ ...selectProductSnapshot, owner: selectUserSnapshot })
+    .from(products)
+    .innerJoin(users, eq(products.ownerId, users.id))
+    .where(eq(products.id, productId));
+  if (!product) throw new NotFoundException('Product not found');
+
+  return res.json({ product });
 });

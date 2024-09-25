@@ -1,4 +1,6 @@
 import {
+  cancelAuction,
+  getAuctionDetails,
   getRecentAuctions,
   getUpcomingAuctions,
   registerAuction
@@ -8,6 +10,7 @@ import { Router } from 'express';
 const router = Router();
 export const auctionsRoute = router;
 
-router.post('/:id', registerAuction);
+router.route('/:id').post(registerAuction).get(getAuctionDetails);
 router.get('/upcoming', getUpcomingAuctions);
 router.get('/recent', getRecentAuctions);
+router.put('/:id/cancel', cancelAuction);

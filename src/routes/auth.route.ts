@@ -8,7 +8,6 @@ export const authRoute = router;
 router.get(
   '/login/google',
   (req, res, next) => {
-    console.log('login request');
     const redirectTo = req.query.redirect;
     // @ts-expect-error ...
     req.session.redirectTo = redirectTo;

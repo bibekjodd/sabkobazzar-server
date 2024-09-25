@@ -9,7 +9,10 @@ export const users = sqliteTable(
     email: text('email', { length: 50 }).notNull(),
     role: text('role', { enum: ['user', 'admin'] }).default('user'),
     image: text('image', { length: 300 }),
-    phone: integer('phone')
+    phone: integer('phone'),
+    lastOnline: text('last_online')
+      .notNull()
+      .$defaultFn(() => new Date().toISOString())
   },
   function constraints(users) {
     return {
@@ -27,5 +30,6 @@ export const selectUserSnapshot = {
   email: users.email,
   role: users.role,
   image: users.image,
-  phone: users.phone
+  phone: users.phone,
+  lastOnline: users.lastOnline
 };

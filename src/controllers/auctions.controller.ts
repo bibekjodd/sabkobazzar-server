@@ -38,21 +38,40 @@ export const registerAuction = handleAsync<{ id: string }>(async (req, res) => {
   const endsAt = new Date(new Date(data.startsAt).getTime() + 60 * 60 * 1000).toISOString();
   await db.insert(auctions).values({ ...data, endsAt, ownerId: req.user.id, productId });
 
-  return res.json({ message: 'Product registered for auction successfully' });
+  return res.status(201).json({ message: 'Product registered for auction successfully' });
+});
+
+export const getAuctionDetails = handleAsync<{ id: string }>(async (req, res) => {
+  const auctionId = req.params.id;
+
+  // todo join participants
+  const [auction] = await db
+    .select({
+      ...selectAuctionsSnapshot,
+      product: selectProductSnapshot,
+      owner: selectUserSnapshot
+    })
+    .from(auctions)
+    .innerJoin(products, eq(auctions.productId, products.id))
+    .innerJoin(users, eq(auctions.ownerId, users.id))
+    .where(eq(auctions.id, auctionId));
+  if (!auction) throw new NotFoundException('Auction does not exist');
+
+  return res.json({ auction });
 });
 
 export const cancelAuction = handleAsync<{ id: string }>(async (req, res) => {
   if (!req.user) throw new UnauthorizedException();
 
   const auctionId = req.params.id;
-  const [auction] = await db
-    .select()
-    .from(auctions)
-    .where(and(eq(auctions.id, auctionId), eq(auctions.ownerId, req.user.id)));
+  const [auction] = await db.select().from(auctions).where(eq(auctions.id, auctionId));
 
   if (!auction) throw new NotFoundException('Auction does not exist');
   if (auction.isFinished) throw new BadRequestException('Auction is already finished');
   if (auction.isCancelled) throw new BadRequestException('Auction is already cancelled');
+
+  if (!(auction.ownerId === req.user.id || req.user.role === 'admin'))
+    throw new ForbiddenException('Only product owner or admin can cancel the auction');
 
   await db.update(auctions).set({ isCancelled: true }).where(eq(auctions.id, auctionId));
   return res.json({ message: 'Auction cancelled successfully' });

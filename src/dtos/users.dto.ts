@@ -17,3 +17,9 @@ export const updateProfileSchema = z
       .optional()
   })
   .refine((data) => Object.keys(data).length !== 0, 'Provide at least one property to update');
+
+export const queryUsersSchema = z.object({
+  q: z.string().optional(),
+  limit: z.preprocess((val) => Number(val) || undefined, z.number().min(1).max(20).default(20)),
+  cursor: z.string().optional()
+});

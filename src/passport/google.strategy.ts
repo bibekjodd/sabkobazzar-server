@@ -24,7 +24,7 @@ export const GoogleStrategy = new Strategy(
         })
         .onConflictDoUpdate({
           target: [users.email],
-          set: { image: image }
+          set: { image: image, lastOnline: new Date().toISOString() }
         })
         .returning();
       return done(null, user);
