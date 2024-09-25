@@ -1,6 +1,6 @@
 import { createProductSchema, queryProductsSchema } from '@/dtos/products.dto';
 import { db } from '@/lib/database';
-import { UnauthorizedException } from '@/lib/exceptions';
+import { ForbiddenException, UnauthorizedException } from '@/lib/exceptions';
 import { handleAsync } from '@/middlewares/handle-async';
 import { products, selectProductSnapshot } from '@/schemas/products.schema';
 import { selectUserSnapshot, users } from '@/schemas/users.schema';
@@ -8,6 +8,7 @@ import { and, desc, eq, gte, like, lt, lte } from 'drizzle-orm';
 
 export const createProduct = handleAsync(async (req, res) => {
   if (!req.user) throw new UnauthorizedException();
+  if (req.user.role === 'admin') throw new ForbiddenException("Admins can't add product");
 
   const data = createProductSchema.parse(req.body);
   const [createdProduct] = await db

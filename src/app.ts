@@ -12,9 +12,11 @@ import { handleErrorRequest } from './middlewares/handle-error-request';
 import { handleSessionRegenerate } from './middlewares/handle-session-regenerate';
 import { GoogleStrategy } from './passport/google.strategy';
 import { serializer } from './passport/serializer';
+import { auctionsRoute } from './routes/auction.route';
 import { authRoute } from './routes/auth.route';
-import { usersRoute } from './routes/users.route';
+import { participantsRoute } from './routes/participants.route';
 import { productsRoute } from './routes/products.route';
+import { usersRoute } from './routes/users.route';
 
 const app = express();
 validateEnv();
@@ -47,6 +49,8 @@ app.get(
 app.use('/api/auth', authRoute);
 app.use('/api/users', usersRoute);
 app.use('/api/products', productsRoute);
+app.use('/api/auctions', auctionsRoute);
+app.use('/api/participants', participantsRoute);
 app.use(() => {
   throw new NotFoundException();
 });
