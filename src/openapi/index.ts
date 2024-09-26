@@ -1,10 +1,11 @@
 import { createDocument, ZodOpenApiPathsObject } from 'zod-openapi';
 import { auctionsDoc } from './auctions.doc';
+import { authDoc } from './auth.doc';
 import { bidsDoc } from './bids.doc';
+import { notificationsDoc } from './notifications.doc';
 import { participantsDoc } from './participants.doc';
 import { productsDoc } from './products.doc';
 import { usersDoc } from './users.doc';
-import { authDoc } from './auth.doc';
 
 export const openApiSpecs = createDocument({
   info: {
@@ -29,7 +30,8 @@ export const openApiSpecs = createDocument({
     productsDoc,
     auctionsDoc,
     participantsDoc,
-    bidsDoc
+    bidsDoc,
+    notificationsDoc
   ),
   components: {
     securitySchemes: {
