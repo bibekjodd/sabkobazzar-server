@@ -4,6 +4,7 @@ import { bidsDoc } from './bids.doc';
 import { participantsDoc } from './participants.doc';
 import { productsDoc } from './products.doc';
 import { usersDoc } from './users.doc';
+import { authDoc } from './auth.doc';
 
 export const openApiSpecs = createDocument({
   info: {
@@ -23,10 +24,27 @@ export const openApiSpecs = createDocument({
         }
       }
     } satisfies ZodOpenApiPathsObject,
+    authDoc,
     usersDoc,
     productsDoc,
     auctionsDoc,
     participantsDoc,
     bidsDoc
-  )
+  ),
+  components: {
+    securitySchemes: {
+      googleOAuth2: {
+        type: 'oauth2',
+        flows: {
+          authorizationCode: {
+            authorizationUrl: '/api/auth/login/google',
+            tokenUrl: '/api/auth/callback/google',
+            scopes: {
+              openid: 'Grants access to user profile and email'
+            }
+          }
+        }
+      }
+    }
+  }
 });
