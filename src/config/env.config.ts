@@ -33,7 +33,11 @@ const envSchema = z
     SESSION_SECRET: z.string(),
 
     PUSHER_KEY: z.string(),
-    PUSHER_SECRET: z.string()
+    PUSHER_SECRET: z.string(),
+
+    SMTP_SERVICE: z.string(),
+    SMTP_MAIL: z.string(),
+    SMTP_PASS: z.string()
   })
   .readonly();
 

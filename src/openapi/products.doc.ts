@@ -1,4 +1,4 @@
-import { createProductSchema, queryProductsSchema } from '@/dtos/products.dto';
+import { addProductSchema, queryProductsSchema } from '@/dtos/products.dto';
 import { z } from 'zod';
 import { ZodOpenApiPathsObject } from 'zod-openapi';
 import 'zod-openapi/extend';
@@ -27,7 +27,7 @@ export const productsDoc: ZodOpenApiPathsObject = {
       summary: 'Add new product',
       requestBody: {
         content: {
-          'application/json': { schema: createProductSchema }
+          'application/json': { schema: addProductSchema }
         }
       },
       responses: {

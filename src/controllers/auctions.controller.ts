@@ -7,6 +7,7 @@ import {
   UnauthorizedException
 } from '@/lib/exceptions';
 import { handleAsync } from '@/middlewares/handle-async';
+import { auctionNotification } from '@/notifications/auctions.notifications';
 import { auctions, selectAuctionsSnapshot } from '@/schemas/auctions.schema';
 import { products, selectProductSnapshot } from '@/schemas/products.schema';
 import { selectUserSnapshot, users } from '@/schemas/users.schema';
@@ -36,8 +37,18 @@ export const registerAuction = handleAsync<{ id: string }>(async (req, res) => {
     );
 
   const endsAt = new Date(new Date(data.startsAt).getTime() + 60 * 60 * 1000).toISOString();
-  await db.insert(auctions).values({ ...data, endsAt, ownerId: req.user.id, productId });
-
+  const [registeredAuction] = await db
+    .insert(auctions)
+    .values({ ...data, endsAt, ownerId: req.user.id, productId })
+    .returning();
+  if (!registeredAuction)
+    throw new BadRequestException('Could not register product for auction at the moment');
+  auctionNotification({
+    auction: registeredAuction,
+    product: product,
+    user: req.user,
+    type: 'register'
+  });
   return res.status(201).json({ message: 'Product registered for auction successfully' });
 });
 

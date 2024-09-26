@@ -1,22 +1,33 @@
-import { createProductSchema, queryProductsSchema } from '@/dtos/products.dto';
+import { addProductSchema, queryProductsSchema } from '@/dtos/products.dto';
 import { db } from '@/lib/database';
-import { ForbiddenException, NotFoundException, UnauthorizedException } from '@/lib/exceptions';
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+  UnauthorizedException
+} from '@/lib/exceptions';
 import { handleAsync } from '@/middlewares/handle-async';
+import { addProductNotification } from '@/notifications/products.notification';
 import { products, selectProductSnapshot } from '@/schemas/products.schema';
 import { selectUserSnapshot, users } from '@/schemas/users.schema';
 import { and, desc, eq, gte, like, lt, lte } from 'drizzle-orm';
 
-export const createProduct = handleAsync(async (req, res) => {
+export const addProduct = handleAsync(async (req, res) => {
   if (!req.user) throw new UnauthorizedException();
   if (req.user.role === 'admin') throw new ForbiddenException("Admins can't add product");
 
-  const data = createProductSchema.parse(req.body);
-  const [createdProduct] = await db
+  const data = addProductSchema.parse(req.body);
+  const [addedProduct] = await db
     .insert(products)
     .values({ ...data, ownerId: req.user.id })
     .returning();
 
-  return res.status(201).json({ product: createdProduct, message: 'Product added successfully' });
+  if (!addedProduct) throw new BadRequestException('Could not add product at the moment');
+  addProductNotification({
+    user: req.user,
+    product: addedProduct
+  });
+  return res.status(201).json({ product: addedProduct, message: 'Product added successfully' });
 });
 
 export const queryProducts = handleAsync(async (req, res) => {

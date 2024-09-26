@@ -3,7 +3,7 @@ import { imageSchema } from './users.dto';
 
 const categorySchema = z.enum(['electronics', 'realestate', 'art', 'others']);
 
-export const createProductSchema = z.object({
+export const addProductSchema = z.object({
   title: z.string().max(200, 'Too long title'),
   image: imageSchema,
   category: categorySchema,
