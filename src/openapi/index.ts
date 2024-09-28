@@ -6,6 +6,7 @@ import { notificationsDoc } from './notifications.doc';
 import { participantsDoc } from './participants.doc';
 import { productsDoc } from './products.doc';
 import { usersDoc } from './users.doc';
+import { eventsDoc } from './events.doc';
 
 export const openApiSpecs = createDocument({
   info: {
@@ -31,7 +32,8 @@ export const openApiSpecs = createDocument({
     auctionsDoc,
     participantsDoc,
     bidsDoc,
-    notificationsDoc
+    notificationsDoc,
+    eventsDoc
   ),
   components: {
     securitySchemes: {

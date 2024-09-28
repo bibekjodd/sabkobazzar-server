@@ -4,6 +4,18 @@ import 'zod-openapi/extend';
 
 const tags = ['Parcticipant'];
 export const participantsDoc: ZodOpenApiPathsObject = {
+  '/api/participants/{id}': {
+    get: {
+      tags,
+      summary: 'Fetch participants list of the auction',
+      requestParams: {
+        path: z.object({ id: z.string() })
+      },
+      responses: {
+        200: { description: 'Participants list fetched successfully' }
+      }
+    }
+  },
   '/api/participants/{id}/join': {
     put: {
       tags,
