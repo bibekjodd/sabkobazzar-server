@@ -10,8 +10,20 @@ import { participantNotification } from '@/notifications/participants.notificati
 import { auctions, selectAuctionsSnapshot } from '@/schemas/auctions.schema';
 import { participants } from '@/schemas/participants.schema';
 import { products, selectProductSnapshot } from '@/schemas/products.schema';
-import { users } from '@/schemas/users.schema';
+import { selectUserSnapshot, users } from '@/schemas/users.schema';
 import { and, eq, sql } from 'drizzle-orm';
+
+export const fetchParticipants = handleAsync<{ id: string }>(async (req, res) => {
+  const auctionId = req.params.id;
+  const result = await db
+    .select({ ...selectUserSnapshot })
+    .from(participants)
+    .where(eq(participants.auctionId, auctionId))
+    .innerJoin(users, eq(participants.userId, users.id))
+    .groupBy(participants.auctionId, participants.userId);
+
+  return res.json({ participants: result });
+});
 
 export const joinAuction = handleAsync<{ id: string }>(async (req, res) => {
   if (!req.user) throw new UnauthorizedException();

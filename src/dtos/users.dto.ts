@@ -9,11 +9,16 @@ export const imageSchema = z
 
 export const updateProfileSchema = z
   .object({
-    name: z.string().max(30, 'Too long name').optional(),
+    name: z
+      .string()
+      .max(30, 'Too long name')
+      .trim()
+      .transform((name) => name.split(' ').slice(0, 3).join(' '))
+      .optional(),
     image: imageSchema.optional(),
     phone: z
       .number()
-      .refine((phone) => phone.toString().length === 10)
+      .refine((phone) => phone.toString().length === 10, 'Invalid phone number')
       .optional()
   })
   .refine((data) => Object.keys(data).length !== 0, 'Provide at least one property to update');

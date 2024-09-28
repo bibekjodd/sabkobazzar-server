@@ -1,5 +1,6 @@
 import { fetchBidsQuerySchema, placeBidSchema } from '@/dtos/bids.dto';
 import { db } from '@/lib/database';
+import { onBid } from '@/lib/events';
 import {
   BadRequestException,
   ForbiddenException,
@@ -44,7 +45,12 @@ export const placeBid = handleAsync<{ id: string }>(async (req, res) => {
   const isAuctionEnded = Date.now() + 60 * 60 * 1000 > new Date(auction.startsAt).getTime();
   if (isAuctionEnded) throw new BadRequestException('Auction is already ended');
 
-  await db.insert(bids).values({ amount, auctionId, bidderId: req.user.id });
+  const [bid] = await db
+    .insert(bids)
+    .values({ amount, auctionId, bidderId: req.user.id })
+    .returning();
+  if (!bid) throw new BadRequestException('Could not place bid at the moment');
+  onBid({ auctionId, bid: { ...bid, bidder: req.user } });
   return res.json({ message: 'Bid placed successfully' });
 });
 

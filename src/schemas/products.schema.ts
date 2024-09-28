@@ -23,7 +23,7 @@ export const products = sqliteTable(
       primakeykey: primaryKey({ name: 'product_pkey', columns: [products.id] }),
       userReference: foreignKey({
         name: 'users_fkey',
-        columns: [products.id],
+        columns: [products.ownerId],
         foreignColumns: [users.id]
       }),
       usersIndex: index('products_idx_owner_id').on(products.ownerId)

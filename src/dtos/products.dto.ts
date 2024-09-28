@@ -5,8 +5,8 @@ const categorySchema = z.enum(['electronics', 'realestate', 'art', 'others']);
 
 export const addProductSchema = z.object({
   title: z.string().max(200, 'Too long title'),
-  image: imageSchema,
-  category: categorySchema,
+  image: imageSchema.optional(),
+  category: categorySchema.default('others'),
   description: z.string().max(500, 'Too long description'),
   price: z
     .number()
@@ -14,15 +14,20 @@ export const addProductSchema = z.object({
     .transform((price) => Math.ceil(price))
 });
 
+export const updateProductSchema = addProductSchema
+  .partial()
+  .refine((val) => Object.keys(val).length !== 0, 'Provide at least one property to update');
+
 const priceFilterSchema = z.preprocess((val) => Number(val) || undefined, z.number().optional());
 export const queryProductsSchema = z.object({
   title: z.string().optional(),
   category: categorySchema.optional(),
   pricegte: priceFilterSchema,
   pricelte: priceFilterSchema,
-  limit: z.preprocess((val) => Number(val) || 20, z.number().min(1).max(20)),
+  limit: z.preprocess((val) => Number(val) || 20, z.number().min(1).max(20).default(20)),
   cursor: z
     .string()
     .datetime()
-    .default(() => new Date().toISOString())
+    .default(() => new Date().toISOString()),
+  owner: z.string().optional()
 });

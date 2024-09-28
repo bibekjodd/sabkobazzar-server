@@ -35,7 +35,7 @@ export const queryUsers = handleAsync(async (req, res) => {
   const result = await db
     .select()
     .from(users)
-    .where(or(like(users.name, `%${q}%`), like(users.email, `%${q}%`)))
+    .where(q ? or(like(users.name, `%${q}%`), like(users.email, `%${q}%`)) : undefined)
     .limit(limit)
     .offset(offset)
     .orderBy((t) => desc(t.name));

@@ -7,7 +7,9 @@ export const users = sqliteTable(
     id: text('id').notNull().$defaultFn(createId),
     name: text('name', { length: 30 }).notNull(),
     email: text('email', { length: 50 }).notNull(),
-    role: text('role', { enum: ['user', 'admin'] }).default('user'),
+    role: text('role', { enum: ['user', 'admin'] })
+      .notNull()
+      .default('user'),
     image: text('image', { length: 300 }),
     phone: integer('phone'),
     lastOnline: text('last_online')

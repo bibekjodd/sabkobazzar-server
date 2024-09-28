@@ -1,4 +1,4 @@
-import { addProductSchema, queryProductsSchema } from '@/dtos/products.dto';
+import { addProductSchema, queryProductsSchema, updateProductSchema } from '@/dtos/products.dto';
 import { db } from '@/lib/database';
 import {
   BadRequestException,
@@ -8,9 +8,10 @@ import {
 } from '@/lib/exceptions';
 import { handleAsync } from '@/middlewares/handle-async';
 import { addProductNotification } from '@/notifications/products.notification';
+import { auctions } from '@/schemas/auctions.schema';
 import { products, selectProductSnapshot } from '@/schemas/products.schema';
 import { selectUserSnapshot, users } from '@/schemas/users.schema';
-import { and, desc, eq, gte, like, lt, lte } from 'drizzle-orm';
+import { and, desc, eq, gt, gte, like, lt, lte } from 'drizzle-orm';
 
 export const addProduct = handleAsync(async (req, res) => {
   if (!req.user) throw new UnauthorizedException();
@@ -27,11 +28,13 @@ export const addProduct = handleAsync(async (req, res) => {
     user: req.user,
     product: addedProduct
   });
-  return res.status(201).json({ product: addedProduct, message: 'Product added successfully' });
+  return res
+    .status(201)
+    .json({ product: { ...addedProduct, owner: req.user }, message: 'Product added successfully' });
 });
 
 export const queryProducts = handleAsync(async (req, res) => {
-  const { cursor, limit, category, pricelte, pricegte, title } = queryProductsSchema.parse(
+  const { cursor, limit, category, pricelte, pricegte, title, owner } = queryProductsSchema.parse(
     req.query
   );
 
@@ -45,7 +48,8 @@ export const queryProducts = handleAsync(async (req, res) => {
         category ? eq(products.category, category) : undefined,
         pricelte ? lte(products.price, pricelte) : undefined,
         pricegte ? gte(products.price, pricegte) : undefined,
-        lt(products.addedAt, cursor)
+        lt(products.addedAt, cursor),
+        owner ? eq(products.ownerId, owner) : undefined
       )
     )
     .orderBy((t) => desc(t.addedAt))
@@ -64,4 +68,35 @@ export const getProductDetails = handleAsync<{ id: string }>(async (req, res) =>
   if (!product) throw new NotFoundException('Product not found');
 
   return res.json({ product });
+});
+
+export const updateProduct = handleAsync<{ id: string }>(async (req, res) => {
+  if (!req.user) throw new UnauthorizedException();
+  const productId = req.params.id;
+
+  const [product] = await db
+    .select()
+    .from(products)
+    .where(and(eq(products.id, productId), eq(products.ownerId, req.user.id)))
+    .innerJoin(
+      auctions,
+      and(
+        eq(products.id, auctions.productId),
+        eq(auctions.isFinished, false),
+        eq(auctions.isCancelled, false),
+        gt(auctions.startsAt, new Date().toISOString())
+      )
+    )
+    .groupBy(products.id);
+
+  if (product) throw new ForbiddenException("Can't update product while auction is pending");
+
+  const data = updateProductSchema.parse(req.body);
+  const [updatedProduct] = await db
+    .update(products)
+    .set(data)
+    .where(eq(products.id, productId))
+    .returning();
+  if (!updateProduct) throw new NotFoundException('Product does not exist');
+  return res.json({ product: { ...updatedProduct, owner: req.user } });
 });

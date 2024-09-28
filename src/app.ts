@@ -18,6 +18,7 @@ import { serializer } from './passport/serializer';
 import { auctionsRoute } from './routes/auctions.route';
 import { authRoute } from './routes/auth.route';
 import { bidsRoute } from './routes/bids.route';
+import { eventsRoute } from './routes/events.route';
 import { notificationsRoute } from './routes/notifications.route';
 import { participantsRoute } from './routes/participants.route';
 import { productsRoute } from './routes/products.route';
@@ -58,6 +59,7 @@ app.use('/api/auctions', auctionsRoute);
 app.use('/api/participants', participantsRoute);
 app.use('/api/bids', bidsRoute);
 app.use('/api/notifications', notificationsRoute);
+app.use('/api/events', eventsRoute);
 if (env.NODE_ENV === 'production') {
   app.use('/docs', express.static(absolutePath()));
 }
