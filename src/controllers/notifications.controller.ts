@@ -3,7 +3,7 @@ import { db } from '@/lib/database';
 import { BadRequestException, UnauthorizedException } from '@/lib/exceptions';
 import { handleAsync } from '@/middlewares/handle-async';
 import { notifications, ResponseNotification } from '@/schemas/notifications.schema';
-import { UserProfile, users } from '@/schemas/users.schema';
+import { users } from '@/schemas/users.schema';
 import { and, desc, eq, lt } from 'drizzle-orm';
 
 export const getNotifications = handleAsync<unknown, { notifications: ResponseNotification[] }>(
@@ -20,7 +20,7 @@ export const getNotifications = handleAsync<unknown, { notifications: ResponseNo
   }
 );
 
-export const readNotifications = handleAsync<unknown, { user: UserProfile }>(async (req, res) => {
+export const readNotifications = handleAsync<unknown, { message: string }>(async (req, res) => {
   if (!req.user) throw new UnauthorizedException();
 
   const [user] = await db
@@ -31,5 +31,5 @@ export const readNotifications = handleAsync<unknown, { user: UserProfile }>(asy
 
   if (!user) throw new BadRequestException('Could not update notification reads');
 
-  return res.json({ user: { ...user, totalUnreadNotifications: 0 } });
+  return res.json({ message: 'Notifications read successfully' });
 });

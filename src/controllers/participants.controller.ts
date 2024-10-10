@@ -8,10 +8,12 @@ import {
 import { handleAsync } from '@/middlewares/handle-async';
 import { participantNotification } from '@/notifications/participants.notification';
 import { auctions, ResponseAuction, selectAuctionsSnapshot } from '@/schemas/auctions.schema';
+import { invites } from '@/schemas/invites.schema';
 import { participants } from '@/schemas/participants.schema';
 import { products, selectProductSnapshot } from '@/schemas/products.schema';
 import { ResponseUser, users } from '@/schemas/users.schema';
 import { getAuctionDetailsById } from '@/services/auctions.services';
+import { inviteParticipantToAuction } from '@/services/invites.services';
 import { findAuctionParticipants } from '@/services/participants.services';
 import { and, eq } from 'drizzle-orm';
 
@@ -40,6 +42,14 @@ export const joinAuction = handleAsync<
   const isJoined = auction.participants.find((user) => user.id === req.user?.id);
   if (isJoined) throw new BadRequestException('You have already joined the auction');
 
+  if (auction.isInviteOnly) {
+    const [isInvited] = await db
+      .select()
+      .from(invites)
+      .where(and(eq(invites.auctionId, auctionId), eq(invites.userId, req.user.id)));
+    if (!isInvited) throw new ForbiddenException('Only invited users can join the auction');
+  }
+
   if (auction.isCancelled) throw new BadRequestException('Auction is already cancelled');
   if (auction.isFinished) throw new BadRequestException('Auction is aleady completed');
 
@@ -56,6 +66,22 @@ export const joinAuction = handleAsync<
 
   return res.json({ message: 'Joined auction successfully', auction });
 });
+
+export const inviteParticipant = handleAsync<{ userId: string; auctionId: string }>(
+  async (req, res) => {
+    if (!req.user) throw new UnauthorizedException();
+
+    const { auctionId, userId } = req.params;
+    const { auction, participant } = await inviteParticipantToAuction({
+      auctionId,
+      ownerId: req.user.id,
+      userId
+    });
+    participantNotification({ auction, type: 'invite', user: participant });
+
+    return res.json({ message: 'User invited successfully' });
+  }
+);
 
 export const leaveAuction = handleAsync<{ id: string }, { message: string }>(async (req, res) => {
   if (!req.user) throw new UnauthorizedException();

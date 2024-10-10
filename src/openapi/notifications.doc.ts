@@ -1,6 +1,5 @@
 import { getNotificationsQuerySchema } from '@/dtos/notifications.dto';
 import { responseNotificationSchema } from '@/schemas/notifications.schema';
-import { userProfileSchema } from '@/schemas/users.schema';
 import { z } from 'zod';
 import { ZodOpenApiPathsObject } from 'zod-openapi';
 
@@ -27,10 +26,11 @@ export const notificationsDoc: ZodOpenApiPathsObject = {
   },
   '/api/notifications/read': {
     put: {
+      tags,
+      summary: 'Read notification',
       responses: {
         200: {
-          description: 'Notification read successfully',
-          content: { 'application/json': { schema: z.object({ user: userProfileSchema }) } }
+          description: 'Notification read successfully'
         }
       }
     }

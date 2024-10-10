@@ -38,6 +38,25 @@ export const participantsDoc: ZodOpenApiPathsObject = {
       }
     }
   },
+  '/api/participants/{userId}/invite/{auctionId}': {
+    put: {
+      summary: 'Invite user to the auction',
+      tags,
+      requestParams: {
+        path: z.object({ userId: z.string(), auctionId: z.string() })
+      },
+      responses: {
+        200: { description: 'User invited successfully' },
+        400: { description: 'Auction is already cancelled or finished or started' },
+        401: { description: 'User is not authorized' },
+        403: {
+          description:
+            'User is not the host of the auction or more than 50 users are already invited'
+        },
+        404: { description: 'Auction or user does not exist' }
+      }
+    }
+  },
   '/api/participants/{id}/leave': {
     put: {
       tags,

@@ -9,7 +9,7 @@ type ParticipantNotificationOptions = {
     email: string;
   };
   auction: { id: string; title: string; startsAt: string };
-  type: 'join' | 'kick' | 'leave';
+  type: 'join' | 'kick' | 'leave' | 'invite';
 };
 
 export const participantNotification = async ({
@@ -28,6 +28,11 @@ export const participantNotification = async ({
   if (type === 'leave') {
     title = 'Left from the auction';
     description = `You have left the auction - ${auction.title} which was scheduled for ${formatDate(auction.startsAt)}`;
+  }
+  if (type === 'invite') {
+    title = 'Invited to join the auction';
+    description = `You have been invited to the auction - ${auction.title} which is scheduled for ${formatDate(auction.startsAt)}`;
+    message = `Hey ${user.name}, ${description}`;
   }
 
   await Promise.all([

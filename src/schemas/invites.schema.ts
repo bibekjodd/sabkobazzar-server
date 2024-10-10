@@ -1,4 +1,4 @@
-import { foreignKey, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { foreignKey, index, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { auctions } from './auctions.schema';
 import { users } from './users.schema';
 
@@ -7,6 +7,9 @@ export const invites = sqliteTable(
   {
     userId: text('user_id').notNull(),
     auctionId: text('auction_id').notNull(),
+    status: text('status', { enum: ['pending', 'accepted', 'rejected'] })
+      .notNull()
+      .default('pending'),
     at: text('at')
       .notNull()
       .$defaultFn(() => new Date().toISOString())
@@ -31,7 +34,10 @@ export const invites = sqliteTable(
         foreignColumns: [auctions.id]
       })
         .onDelete('cascade')
-        .onUpdate('cascade')
+        .onUpdate('cascade'),
+
+      userIndex: index('idx_user_id_invites').on(invites.userId),
+      auctionIndex: index('idx_auction_id_invites').on(invites.auctionId)
     };
   }
 );

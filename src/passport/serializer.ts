@@ -17,7 +17,7 @@ export const serializer = () => {
         })
         .from(users)
         .where(eq(users.id, id))
-        .innerJoin(
+        .leftJoin(
           notifications,
           and(
             eq(notifications.userId, users.id),
