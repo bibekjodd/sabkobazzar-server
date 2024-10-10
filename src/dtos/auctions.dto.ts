@@ -1,6 +1,13 @@
 import { z } from 'zod';
+import { imageSchema } from './users.dto';
 
 export const registerAuctionSchema = z.object({
+  title: z.string().trim().max(200, 'Too long title'),
+  description: z.string().trim().max(500, 'Too long description').optional(),
+  isInviteOnly: z.boolean().default(false),
+  banner: imageSchema.optional(),
+  lot: z.number().min(1).max(10, "Lot can't exceed 10"),
+  condition: z.enum(['new', 'first-class', 'repairable']),
   startsAt: z
     .string({ required_error: 'Auction start time is required' })
     .datetime()
@@ -40,5 +47,7 @@ export const getUpcomingAuctionsQuerySchema = z.object({
     .string()
     .datetime()
     .default(() => new Date().toISOString()),
-  limit: z.preprocess((val) => Number(val) || 20, z.number().min(1).max(20)).default(20)
+  limit: z.preprocess((val) => Number(val) || 20, z.number().min(1).max(20)).default(20),
+  owner: z.string().optional(),
+  product: z.string().optional()
 });

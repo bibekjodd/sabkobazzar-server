@@ -1,6 +1,7 @@
 import { db } from '@/lib/database';
-import { users } from '@/schemas/users.schema';
-import { eq } from 'drizzle-orm';
+import { notifications } from '@/schemas/notifications.schema';
+import { selectUserSnapshot, users } from '@/schemas/users.schema';
+import { and, eq, gt, sql } from 'drizzle-orm';
 import passport from 'passport';
 
 export const serializer = () => {
@@ -9,7 +10,21 @@ export const serializer = () => {
   });
   passport.deserializeUser(async (id: string, done) => {
     try {
-      const [user] = await db.select().from(users).where(eq(users.id, id));
+      const [user] = await db
+        .select({
+          ...selectUserSnapshot,
+          totalUnreadNotifications: sql<number>`count(${notifications.id})`
+        })
+        .from(users)
+        .where(eq(users.id, id))
+        .innerJoin(
+          notifications,
+          and(
+            eq(notifications.userId, users.id),
+            gt(notifications.receivedAt, users.lastNotificationReadAt)
+          )
+        )
+        .groupBy(users.id);
       return done(null, user || null);
     } catch (error) {
       return done(error, null);

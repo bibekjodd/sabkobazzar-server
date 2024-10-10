@@ -1,17 +1,35 @@
 import { getNotificationsQuerySchema } from '@/dtos/notifications.dto';
 import { db } from '@/lib/database';
-import { UnauthorizedException } from '@/lib/exceptions';
+import { BadRequestException, UnauthorizedException } from '@/lib/exceptions';
 import { handleAsync } from '@/middlewares/handle-async';
-import { notifications } from '@/schemas/notifications.schema';
-import { and, eq, lt } from 'drizzle-orm';
+import { notifications, ResponseNotification } from '@/schemas/notifications.schema';
+import { UserProfile, users } from '@/schemas/users.schema';
+import { and, desc, eq, lt } from 'drizzle-orm';
 
-export const getNotifications = handleAsync(async (req, res) => {
+export const getNotifications = handleAsync<unknown, { notifications: ResponseNotification[] }>(
+  async (req, res) => {
+    if (!req.user) throw new UnauthorizedException();
+    const { limit, cursor } = getNotificationsQuerySchema.parse(req.query);
+    const result = await db
+      .select()
+      .from(notifications)
+      .where(and(eq(notifications.userId, req.user.id), lt(notifications.receivedAt, cursor)))
+      .orderBy((t) => desc(t.receivedAt))
+      .limit(limit);
+    return res.json({ notifications: result });
+  }
+);
+
+export const readNotifications = handleAsync<unknown, { user: UserProfile }>(async (req, res) => {
   if (!req.user) throw new UnauthorizedException();
-  const { limit, cursor } = getNotificationsQuerySchema.parse(req.query);
-  const result = await db
-    .select()
-    .from(notifications)
-    .where(and(eq(notifications.userId, req.user.id), lt(notifications.receivedAt, cursor)))
-    .limit(limit);
-  return res.json({ notifications: result });
+
+  const [user] = await db
+    .update(users)
+    .set({ lastNotificationReadAt: new Date().toISOString() })
+    .where(eq(users.id, req.user.id))
+    .returning();
+
+  if (!user) throw new BadRequestException('Could not update notification reads');
+
+  return res.json({ user: { ...user, totalUnreadNotifications: 0 } });
 });

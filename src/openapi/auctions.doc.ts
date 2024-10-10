@@ -1,4 +1,5 @@
 import { getUpcomingAuctionsQuerySchema, registerAuctionSchema } from '@/dtos/auctions.dto';
+import { responseAuctionSchema } from '@/schemas/auctions.schema';
 import { z } from 'zod';
 import { ZodOpenApiPathsObject } from 'zod-openapi';
 import 'zod-openapi/extend';
@@ -19,7 +20,10 @@ export const auctionsDoc: ZodOpenApiPathsObject = {
         }
       },
       responses: {
-        201: { description: 'Auction registered successfully' },
+        201: {
+          description: 'Auction registered successfully',
+          content: { 'application/json': { schema: z.object({ auction: responseAuctionSchema }) } }
+        },
         400: { description: 'Invalid request body payload' },
         401: { description: 'User is not authenticated' },
         403: {
@@ -33,7 +37,10 @@ export const auctionsDoc: ZodOpenApiPathsObject = {
       summary: 'Get auctions details',
       requestParams: { path: z.object({ id: z.string() }).openapi({ description: 'Auction id' }) },
       responses: {
-        200: { description: 'Auctiond details fetched successfully' },
+        200: {
+          description: 'Auctiond details fetched successfully',
+          content: { 'application/json': { schema: z.object({ auction: responseAuctionSchema }) } }
+        },
         404: { description: 'Auction does not exist' }
       }
     }
@@ -46,7 +53,12 @@ export const auctionsDoc: ZodOpenApiPathsObject = {
         query: getUpcomingAuctionsQuerySchema
       },
       responses: {
-        200: { description: 'Upcoming auctions list fetched successfully' },
+        200: {
+          description: 'Upcoming auctions list fetched successfully',
+          content: {
+            'application/json': { schema: z.object({ auctions: z.array(responseAuctionSchema) }) }
+          }
+        },
         400: { description: 'Invalid request query' }
       }
     }
@@ -56,7 +68,12 @@ export const auctionsDoc: ZodOpenApiPathsObject = {
       tags,
       summary: 'Fetch the recent auctions list',
       responses: {
-        200: { description: 'Upcoming auctions list fetched successfully' }
+        200: {
+          description: 'Upcoming auctions list fetched successfully',
+          content: {
+            'application/json': { schema: z.object({ auctions: z.array(responseAuctionSchema) }) }
+          }
+        }
       }
     }
   },

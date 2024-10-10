@@ -27,7 +27,8 @@ export const GoogleStrategy = new Strategy(
           set: { image: image, lastOnline: new Date().toISOString() }
         })
         .returning();
-      return done(null, user);
+      if (!user) return done(null, undefined);
+      return done(null, { ...user, totalUnreadNotifications: 0 });
     } catch (err) {
       done(err as Error, undefined);
     }

@@ -8,24 +8,26 @@ type ParticipantNotificationOptions = {
     name: string;
     email: string;
   };
-  product: { id: string; title: string };
-  auction: { id: string; startsAt: string };
-  type: 'join' | 'kick';
+  auction: { id: string; title: string; startsAt: string };
+  type: 'join' | 'kick' | 'leave';
 };
 
 export const participantNotification = async ({
   user,
-  product,
   auction,
   type
 }: ParticipantNotificationOptions) => {
   let title = `Joined the auction`;
-  let description = `Auction for the product - ${product.title} starts at ${formatDate(auction.startsAt)}`;
+  let description = `Auction - ${auction.title} starts at ${formatDate(auction.startsAt)}`;
   let message = `Hey ${user.name}, ${description}`;
   if (type === 'kick') {
     title = 'Removed from the auction';
-    description = `You have been removed from the auction for the product - ${product.title}`;
+    description = `You have been removed from the auction - ${auction.title} which was scheduled for ${formatDate(auction.startsAt)}`;
     message = `Hey ${user.name}, ${description}`;
+  }
+  if (type === 'leave') {
+    title = 'Left from the auction';
+    description = `You have left the auction - ${auction.title} which was scheduled for ${formatDate(auction.startsAt)}`;
   }
 
   await Promise.all([
@@ -34,8 +36,9 @@ export const participantNotification = async ({
       params: auction.id,
       title,
       userId: user.id,
-      description
+      description,
+      type
     }),
-    sendMail({ mail: user.email, subject: title, text: message })
+    type !== 'leave' && sendMail({ mail: user.email, subject: title, text: message })
   ]);
 };

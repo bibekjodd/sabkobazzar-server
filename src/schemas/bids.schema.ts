@@ -1,7 +1,10 @@
 import { createId } from '@paralleldrive/cuid2';
+import { getTableColumns } from 'drizzle-orm';
 import { foreignKey, index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { createSelectSchema } from 'drizzle-zod';
+import { z } from 'zod';
 import { auctions } from './auctions.schema';
-import { users } from './users.schema';
+import { responesUserSchema, users } from './users.schema';
 
 export const bids = sqliteTable(
   'bids',
@@ -38,10 +41,7 @@ export const bids = sqliteTable(
 
 export type Bid = typeof bids.$inferSelect;
 export type InsertBid = typeof bids.$inferInsert;
-export const selectBidSnapshot = {
-  id: bids.id,
-  auctionId: bids.auctionId,
-  bidderId: bids.bidderId,
-  at: bids.at,
-  amount: bids.amount
-};
+export const selectBidSnapshot = getTableColumns(bids);
+export const selectBidSchema = createSelectSchema(bids);
+export const responseBidSchema = selectBidSchema.extend({ bidder: responesUserSchema });
+export type ResponseBid = z.infer<typeof responseBidSchema>;

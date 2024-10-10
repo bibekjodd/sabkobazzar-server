@@ -1,12 +1,21 @@
 import { createId } from '@paralleldrive/cuid2';
+import { getTableColumns } from 'drizzle-orm';
 import { foreignKey, index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
-import { products } from './products.schema';
-import { users } from './users.schema';
+import { createSelectSchema } from 'drizzle-zod';
+import { z } from 'zod';
+import { products, selectProductSchema } from './products.schema';
+import { responesUserSchema, users } from './users.schema';
 
 export const auctions = sqliteTable(
   'auctions',
   {
     id: text('id').notNull().$defaultFn(createId),
+    title: text('title', { length: 200 }).notNull(),
+    description: text('description', { length: 500 }),
+    isInviteOnly: integer('is_invite_only', { mode: 'boolean' }).notNull().default(false),
+    banner: text('banner', { length: 300 }),
+    lot: integer('lot').notNull(),
+    condition: text('condition', { enum: ['new', 'first-class', 'repairable'] }).notNull(),
     productId: text('product_id').notNull(),
     ownerId: text('owner_id').notNull(),
     winnerId: text('winner_id'),
@@ -47,18 +56,12 @@ export const auctions = sqliteTable(
 
 export type Auction = typeof auctions.$inferSelect;
 export type InsertAuction = typeof auctions.$inferInsert;
-
-export const selectAuctionsSnapshot = {
-  id: auctions.id,
-  productId: auctions.productId,
-  ownerId: auctions.ownerId,
-  winnerId: auctions.winnerId,
-  startsAt: auctions.startsAt,
-  endsAt: auctions.endsAt,
-  minBid: auctions.minBid,
-  finalBid: auctions.finalBid,
-  minBidders: auctions.minBidders,
-  maxBidders: auctions.maxBidders,
-  isFinished: auctions.isFinished,
-  isCancelled: auctions.isCancelled
-};
+export const selectAuctionsSnapshot = getTableColumns(auctions);
+export const selectAuctionSchema = createSelectSchema(auctions);
+export const responseAuctionSchema = selectAuctionSchema.extend({
+  product: selectProductSchema,
+  owner: responesUserSchema,
+  winner: responesUserSchema.nullable(),
+  participants: z.array(responesUserSchema)
+});
+export type ResponseAuction = z.infer<typeof responseAuctionSchema>;

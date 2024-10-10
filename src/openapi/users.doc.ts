@@ -1,4 +1,5 @@
 import { queryUsersSchema, updateProfileSchema } from '@/dtos/users.dto';
+import { selectUserSchema, userProfileSchema } from '@/schemas/users.schema';
 import { z } from 'zod';
 import { ZodOpenApiPathsObject } from 'zod-openapi';
 import 'zod-openapi/extend';
@@ -11,7 +12,8 @@ export const usersDoc: ZodOpenApiPathsObject = {
       summary: 'Fetch profile',
       responses: {
         200: {
-          description: 'User profile fetched successfully'
+          description: 'User profile fetched successfully',
+          content: { 'application/json': { schema: z.object({ user: userProfileSchema }) } }
         },
         401: {
           description: 'User is not authenticated'
@@ -31,7 +33,10 @@ export const usersDoc: ZodOpenApiPathsObject = {
         }
       },
       responses: {
-        200: { description: 'Profile updated successfully' },
+        200: {
+          description: 'Profile updated successfully',
+          content: { 'application/json': { schema: z.object({ user: userProfileSchema }) } }
+        },
         400: { description: 'Invalid request body payload' },
         401: { description: 'User is not authenticated' }
       }
@@ -45,7 +50,10 @@ export const usersDoc: ZodOpenApiPathsObject = {
         path: z.object({ id: z.string() }).openapi({ description: 'User id' })
       },
       responses: {
-        200: { description: 'User details fetched successfully' }
+        200: {
+          description: 'User details fetched successfully',
+          content: { 'application/json': { schema: z.object({ user: selectUserSchema }) } }
+        }
       }
     }
   },
@@ -59,7 +67,13 @@ export const usersDoc: ZodOpenApiPathsObject = {
       },
       responses: {
         200: {
-          description: 'Search results fetched successfully'
+          description: 'Search results fetched successfully',
+          content: {
+            'application/json': { schema: z.object({ users: z.array(selectUserSchema) }) }
+          }
+        },
+        400: {
+          description: 'Invalid request query'
         }
       }
     }

@@ -1,4 +1,5 @@
 import { addProductSchema, queryProductsSchema } from '@/dtos/products.dto';
+import { responseProductSchema } from '@/schemas/products.schema';
 import { z } from 'zod';
 import { ZodOpenApiPathsObject } from 'zod-openapi';
 import 'zod-openapi/extend';
@@ -15,7 +16,10 @@ export const productsDoc: ZodOpenApiPathsObject = {
       },
       responses: {
         200: {
-          description: 'Fetched products successfully'
+          description: 'Fetched products successfully',
+          content: {
+            'application/json': { schema: z.object({ products: z.array(responseProductSchema) }) }
+          }
         },
         400: {
           description: 'Invalid query filters'
@@ -31,7 +35,10 @@ export const productsDoc: ZodOpenApiPathsObject = {
         }
       },
       responses: {
-        201: { description: 'New product added successfully' },
+        201: {
+          description: 'New product added successfully',
+          content: { 'application/json': { schema: z.object({ product: responseProductSchema }) } }
+        },
         400: { description: 'Invalid request body payload' },
         401: { description: 'User is not authenticated' },
         403: { description: "Admins can't add new product" }
@@ -46,7 +53,10 @@ export const productsDoc: ZodOpenApiPathsObject = {
         path: z.object({ id: z.string() }).openapi({ description: 'Product id' })
       },
       responses: {
-        200: { description: 'Product details fetched successfully' },
+        200: {
+          description: 'Product details fetched successfully',
+          content: { 'application/json': { schema: z.object({ product: responseProductSchema }) } }
+        },
         404: { description: 'Product does not exist' }
       }
     }

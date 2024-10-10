@@ -1,5 +1,8 @@
 import { createId } from '@paralleldrive/cuid2';
+import { getTableColumns } from 'drizzle-orm';
 import { foreignKey, index, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { createSelectSchema } from 'drizzle-zod';
+import { z } from 'zod';
 import { users } from './users.schema';
 
 export const notifications = sqliteTable(
@@ -13,7 +16,8 @@ export const notifications = sqliteTable(
       .notNull()
       .$defaultFn(() => new Date().toISOString()),
     entity: text('entity').notNull(),
-    params: text('params')
+    params: text('params'),
+    type: text('type')
   },
   function constraints(notifications) {
     return {
@@ -32,12 +36,7 @@ export const notifications = sqliteTable(
 
 export type Notification = typeof notifications.$inferSelect;
 export type InsertNotification = typeof notifications.$inferInsert;
-
-export const selectNotificationSnapshot = {
-  id: notifications.id,
-  title: notifications.title,
-  description: notifications.description,
-  receivedAt: notifications.receivedAt,
-  entity: notifications.entity,
-  params: notifications.params
-};
+export const selectNotificationSnapshot = getTableColumns(notifications);
+export const selectNotificationSchema = createSelectSchema(notifications);
+export const responseNotificationSchema = selectNotificationSchema;
+export type ResponseNotification = z.infer<typeof responseNotificationSchema>;

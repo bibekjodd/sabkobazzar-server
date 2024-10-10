@@ -10,7 +10,8 @@ import { Router } from 'express';
 const router = Router();
 export const auctionsRoute = router;
 
-router.route('/:id').post(registerAuction).get(getAuctionDetails);
 router.get('/upcoming', getUpcomingAuctions);
 router.get('/recent', getRecentAuctions);
+router.get('/:id', getAuctionDetails);
+router.route('/:id').post(registerAuction);
 router.put('/:id/cancel', cancelAuction);

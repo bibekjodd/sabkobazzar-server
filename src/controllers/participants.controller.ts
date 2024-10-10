@@ -7,60 +7,57 @@ import {
 } from '@/lib/exceptions';
 import { handleAsync } from '@/middlewares/handle-async';
 import { participantNotification } from '@/notifications/participants.notification';
-import { auctions, selectAuctionsSnapshot } from '@/schemas/auctions.schema';
+import { auctions, ResponseAuction, selectAuctionsSnapshot } from '@/schemas/auctions.schema';
 import { participants } from '@/schemas/participants.schema';
 import { products, selectProductSnapshot } from '@/schemas/products.schema';
-import { selectUserSnapshot, users } from '@/schemas/users.schema';
-import { and, eq, sql } from 'drizzle-orm';
+import { ResponseUser, users } from '@/schemas/users.schema';
+import { getAuctionDetailsById } from '@/services/auctions.services';
+import { findAuctionParticipants } from '@/services/participants.services';
+import { and, eq } from 'drizzle-orm';
 
-export const fetchParticipants = handleAsync<{ id: string }>(async (req, res) => {
-  const auctionId = req.params.id;
-  const result = await db
-    .select({ ...selectUserSnapshot })
-    .from(participants)
-    .where(eq(participants.auctionId, auctionId))
-    .innerJoin(users, eq(participants.userId, users.id))
-    .groupBy(participants.auctionId, participants.userId);
+export const fetchParticipants = handleAsync<{ id: string }, { participants: ResponseUser[] }>(
+  async (req, res) => {
+    const auctionId = req.params.id;
+    const result = await findAuctionParticipants(auctionId);
+    return res.json({ participants: result });
+  }
+);
 
-  return res.json({ participants: result });
-});
-
-export const joinAuction = handleAsync<{ id: string }>(async (req, res) => {
+export const joinAuction = handleAsync<
+  { id: string },
+  { auction: ResponseAuction; message: string }
+>(async (req, res) => {
   if (!req.user) throw new UnauthorizedException();
   if (req.user.role === 'admin') throw new ForbiddenException("Admins can't join the auction");
 
   const auctionId = req.params.id;
-  const [auction] = await db
-    .select({
-      ...selectAuctionsSnapshot,
-      totalParticipants: sql<number>`count(${participants.userId})`,
-      product: selectProductSnapshot
-    })
-    .from(auctions)
-    .innerJoin(participants, eq(auctions.id, participants.auctionId))
-    .innerJoin(products, eq(auctions.productId, products.id))
-    .where(eq(auctions.id, auctionId))
-    .groupBy(auctions.id);
+  const auction = await getAuctionDetailsById(auctionId);
 
   if (!auction) throw new NotFoundException('Auction does not exist');
+  if (auction.ownerId === req.user.id)
+    throw new ForbiddenException('Now allowed to join the auction hosted by self');
+
+  const isJoined = auction.participants.find((user) => user.id === req.user?.id);
+  if (isJoined) throw new BadRequestException('You have already joined the auction');
+
   if (auction.isCancelled) throw new BadRequestException('Auction is already cancelled');
   if (auction.isFinished) throw new BadRequestException('Auction is aleady completed');
 
-  if (auction.totalParticipants >= auction.maxBidders)
+  if (auction.participants.length >= auction.maxBidders)
     throw new BadRequestException('Auction has already reached the max participants limit');
 
   await db.insert(participants).values({ userId: req.user.id, auctionId });
+  auction.participants.push(req.user);
   participantNotification({
     auction: auction,
-    product: auction.product,
     type: 'join',
     user: req.user
   });
 
-  return res.json({ message: 'Joined auction successfully' });
+  return res.json({ message: 'Joined auction successfully', auction });
 });
 
-export const leaveAuction = handleAsync<{ id: string }>(async (req, res) => {
+export const leaveAuction = handleAsync<{ id: string }, { message: string }>(async (req, res) => {
   if (!req.user) throw new UnauthorizedException();
   if (req.user.role === 'admin') throw new ForbiddenException("Admins can't perform this action");
 
@@ -68,10 +65,9 @@ export const leaveAuction = handleAsync<{ id: string }>(async (req, res) => {
   const [auction] = await db
     .select({ ...selectAuctionsSnapshot })
     .from(participants)
-    .innerJoin(
-      auctions,
-      and(eq(participants.userId, req.user.id), eq(participants.auctionId, auctionId))
-    );
+    .innerJoin(auctions, eq(participants.auctionId, auctions.id))
+    .where(and(eq(participants.auctionId, auctionId), eq(participants.userId, req.user.id)))
+    .groupBy(auctions.id);
 
   if (!auction) throw new NotFoundException('Auction does not exist');
   if (auction.isCancelled) throw new BadRequestException('Auction is already cancelled');
@@ -84,53 +80,57 @@ export const leaveAuction = handleAsync<{ id: string }>(async (req, res) => {
 
   await db
     .delete(participants)
-    .where(and(eq(auctions.id, auctionId), eq(participants.userId, req.user.id)));
+    .where(and(eq(participants.auctionId, auctionId), eq(participants.userId, req.user.id)));
+
+  participantNotification({ auction, type: 'leave', user: req.user });
+
   return res.json({ message: 'Left auction successfully' });
 });
 
-export const kickParticipant = handleAsync<{ auctionId: string; userId: string }>(
-  async (req, res) => {
-    if (!req.user) throw new UnauthorizedException();
+export const kickParticipant = handleAsync<
+  { auctionId: string; userId: string },
+  { message: string }
+>(async (req, res) => {
+  if (!req.user) throw new UnauthorizedException();
 
-    const auctionId = req.params.auctionId;
-    const userId = req.params.userId;
+  const auctionId = req.params.auctionId;
+  const userId = req.params.userId;
 
-    const participantPromise = db
-      .select()
-      .from(users)
-      .where(eq(users.id, userId))
-      .execute()
-      .then((res) => res[0]);
-    const auctionResultPromise = db
-      .select({ ...selectAuctionsSnapshot, product: selectProductSnapshot })
-      .from(auctions)
-      .innerJoin(products, eq(auctions.productId, products.id))
-      .where(
-        and(
-          eq(auctions.id, auctionId),
-          eq(auctions.isFinished, false),
-          eq(auctions.isCancelled, false)
-        )
+  const participantPromise = db
+    .select()
+    .from(users)
+    .where(eq(users.id, userId))
+    .execute()
+    .then((res) => res[0]);
+  const auctionResultPromise = db
+    .select({ ...selectAuctionsSnapshot, product: selectProductSnapshot })
+    .from(auctions)
+    .innerJoin(products, eq(auctions.productId, products.id))
+    .where(
+      and(
+        eq(auctions.id, auctionId),
+        eq(auctions.isFinished, false),
+        eq(auctions.isCancelled, false)
       )
-      .groupBy(auctions.id)
-      .execute()
-      .then((res) => res[0]);
+    )
+    .groupBy(auctions.id)
+    .execute()
+    .then((res) => res[0]);
 
-    const [participant, auction] = await Promise.all([participantPromise, auctionResultPromise]);
+  const [participant, auction] = await Promise.all([participantPromise, auctionResultPromise]);
 
-    if (!participant) throw new NotFoundException('Participant does not exist');
-    if (!auction) throw new NotFoundException('Auction does not exist');
-    const isStarted = Date.now() >= new Date(auction.startsAt).getTime();
-    if (isStarted) throw new ForbiddenException("Can't kick bidder after the auction has started");
+  if (!participant) throw new NotFoundException('Participant does not exist');
+  if (!auction) throw new NotFoundException('Auction does not exist');
+  const isStarted = Date.now() >= new Date(auction.startsAt).getTime();
+  if (isStarted) throw new ForbiddenException("Can't kick bidder after the auction has started");
 
-    if (!(req.user.role === 'admin' || req.user.id === auction.ownerId))
-      throw new ForbiddenException('Only admin or product owner can kick the participant');
+  if (!(req.user.role === 'admin' || req.user.id === auction.ownerId))
+    throw new ForbiddenException('Only admin or product owner can kick the participant');
 
-    await db
-      .delete(participants)
-      .where(and(eq(participants.auctionId, auctionId), eq(participants.userId, userId)));
-    participantNotification({ auction, product: auction.product, type: 'kick', user: participant });
+  await db
+    .delete(participants)
+    .where(and(eq(participants.auctionId, auctionId), eq(participants.userId, userId)));
+  participantNotification({ auction, type: 'kick', user: participant });
 
-    return res.json({ message: 'Kicked participant successfully' });
-  }
-);
+  return res.json({ message: 'Kicked participant successfully' });
+});

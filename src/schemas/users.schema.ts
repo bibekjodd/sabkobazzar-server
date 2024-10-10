@@ -1,5 +1,8 @@
 import { createId } from '@paralleldrive/cuid2';
+import { getTableColumns } from 'drizzle-orm';
 import { integer, primaryKey, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core';
+import { createSelectSchema } from 'drizzle-zod';
+import { z } from 'zod';
 
 export const users = sqliteTable(
   'users',
@@ -14,6 +17,9 @@ export const users = sqliteTable(
     phone: integer('phone'),
     lastOnline: text('last_online')
       .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+    lastNotificationReadAt: text('last_notification_read_at')
+      .notNull()
       .$defaultFn(() => new Date().toISOString())
   },
   function constraints(users) {
@@ -26,12 +32,9 @@ export const users = sqliteTable(
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
-export const selectUserSnapshot = {
-  id: users.id,
-  name: users.name,
-  email: users.email,
-  role: users.role,
-  image: users.image,
-  phone: users.phone,
-  lastOnline: users.lastOnline
-};
+export const selectUserSnapshot = getTableColumns(users);
+export const selectUserSchema = createSelectSchema(users);
+export const responesUserSchema = selectUserSchema;
+export type ResponseUser = User;
+export type UserProfile = User & { totalUnreadNotifications: number };
+export const userProfileSchema = selectUserSchema.extend({ totalUnreadNotifications: z.number() });

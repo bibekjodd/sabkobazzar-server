@@ -8,12 +8,18 @@ import {
 } from '@/lib/exceptions';
 import { handleAsync } from '@/middlewares/handle-async';
 import { auctionNotification } from '@/notifications/auctions.notifications';
-import { auctions, selectAuctionsSnapshot } from '@/schemas/auctions.schema';
+import { auctions, ResponseAuction, selectAuctionsSnapshot } from '@/schemas/auctions.schema';
+import { participants } from '@/schemas/participants.schema';
 import { products, selectProductSnapshot } from '@/schemas/products.schema';
 import { selectUserSnapshot, users } from '@/schemas/users.schema';
-import { and, asc, desc, eq, gte, lte } from 'drizzle-orm';
+import { getAuctionDetailsById, selectJsonArrayParticipants } from '@/services/auctions.services';
+import { and, asc, desc, eq, getTableColumns, gt, lt } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/sqlite-core';
 
-export const registerAuction = handleAsync<{ id: string }>(async (req, res) => {
+export const registerAuction = handleAsync<
+  { id: string },
+  { auction: ResponseAuction; message: string }
+>(async (req, res) => {
   if (!req.user) throw new UnauthorizedException();
   if (req.user.role === 'admin')
     throw new ForbiddenException('Admins are not allowed to register auction');
@@ -49,29 +55,28 @@ export const registerAuction = handleAsync<{ id: string }>(async (req, res) => {
     user: req.user,
     type: 'register'
   });
-  return res.status(201).json({ message: 'Product registered for auction successfully' });
+  const [owner] = await db.select().from(users).where(eq(users.id, registeredAuction.ownerId));
+  return res.status(201).json({
+    message: 'Product registered for auction successfully',
+    auction: {
+      ...registeredAuction,
+      owner: owner!,
+      product,
+      winner: null,
+      participants: []
+    }
+  });
 });
 
-export const getAuctionDetails = handleAsync<{ id: string }>(async (req, res) => {
-  const auctionId = req.params.id;
+export const getAuctionDetails = handleAsync<{ id: string }, { auction: ResponseAuction }>(
+  async (req, res) => {
+    const auctionId = req.params.id;
+    const auction = await getAuctionDetailsById(auctionId);
+    return res.json({ auction });
+  }
+);
 
-  // todo join participants
-  const [auction] = await db
-    .select({
-      ...selectAuctionsSnapshot,
-      product: selectProductSnapshot,
-      owner: selectUserSnapshot
-    })
-    .from(auctions)
-    .innerJoin(products, eq(auctions.productId, products.id))
-    .innerJoin(users, eq(auctions.ownerId, users.id))
-    .where(eq(auctions.id, auctionId));
-  if (!auction) throw new NotFoundException('Auction does not exist');
-
-  return res.json({ auction });
-});
-
-export const cancelAuction = handleAsync<{ id: string }>(async (req, res) => {
+export const cancelAuction = handleAsync<{ id: string }, { message: string }>(async (req, res) => {
   if (!req.user) throw new UnauthorizedException();
 
   const auctionId = req.params.id;
@@ -88,44 +93,79 @@ export const cancelAuction = handleAsync<{ id: string }>(async (req, res) => {
   return res.json({ message: 'Auction cancelled successfully' });
 });
 
-export const getUpcomingAuctions = handleAsync(async (req, res) => {
-  const { cursor, limit } = getUpcomingAuctionsQuerySchema.parse(req.query);
-
-  const result = await db
-    .select({
-      ...selectAuctionsSnapshot,
-      owner: selectUserSnapshot,
-      product: selectProductSnapshot
-    })
-    .from(auctions)
-    .where(
-      and(
-        gte(auctions.startsAt, cursor),
-        eq(auctions.isFinished, false),
-        eq(auctions.isCancelled, false)
+export const getUpcomingAuctions = handleAsync<unknown, { auctions: ResponseAuction[] }>(
+  async (req, res) => {
+    const { cursor, limit, owner, product } = getUpcomingAuctionsQuerySchema.parse(req.query);
+    const participant = alias(users, 'participant');
+    const result = await db
+      .select({
+        ...selectAuctionsSnapshot,
+        owner: selectUserSnapshot,
+        product: selectProductSnapshot,
+        participants: selectJsonArrayParticipants()
+      })
+      .from(auctions)
+      .where(
+        and(
+          gt(auctions.startsAt, cursor),
+          eq(auctions.isFinished, false),
+          eq(auctions.isCancelled, false),
+          owner ? eq(auctions.ownerId, owner) : undefined,
+          product ? eq(auctions.productId, product) : undefined
+        )
       )
-    )
-    .innerJoin(products, eq(auctions.productId, products.id))
-    .innerJoin(users, eq(auctions.ownerId, users.id))
-    .limit(limit)
-    .orderBy((t) => asc(t.startsAt));
+      .innerJoin(products, eq(auctions.productId, products.id))
+      .innerJoin(users, eq(auctions.ownerId, users.id))
+      .leftJoin(participants, eq(auctions.id, participants.auctionId))
+      .leftJoin(participant, eq(participants.userId, participant.id))
+      .groupBy(auctions.id)
+      .limit(limit)
+      .orderBy((t) => asc(t.startsAt));
 
-  return res.json({ auctions: result });
-});
+    const finalResult: ResponseAuction[] = result.map((item) => ({
+      ...item,
+      winner: null,
+      participants: JSON.parse(item.participants)
+    }));
+    return res.json({ auctions: finalResult });
+  }
+);
 
-export const getRecentAuctions = handleAsync(async (req, res) => {
-  const result = await db
-    .select({
-      ...selectAuctionsSnapshot,
-      owner: selectUserSnapshot,
-      product: selectProductSnapshot
-    })
-    .from(auctions)
-    .where(and(eq(auctions.isFinished, true), lte(auctions.endsAt, new Date().toISOString())))
-    .innerJoin(products, eq(auctions.productId, products.id))
-    .innerJoin(users, eq(auctions.ownerId, users.id))
-    .orderBy((t) => desc(t.startsAt))
-    .limit(10);
+export const getRecentAuctions = handleAsync<unknown, { auctions: ResponseAuction[] }>(
+  async (req, res) => {
+    const { limit, cursor, owner, product } = getUpcomingAuctionsQuerySchema.parse(req.query);
+    const participant = alias(users, 'participant');
+    const winner = alias(users, 'winner');
+    const result = await db
+      .select({
+        ...selectAuctionsSnapshot,
+        owner: selectUserSnapshot,
+        product: selectProductSnapshot,
+        participants: selectJsonArrayParticipants(),
+        winner: getTableColumns(winner)
+      })
+      .from(auctions)
+      .where(
+        and(
+          eq(auctions.isFinished, true),
+          lt(auctions.startsAt, cursor),
+          owner ? eq(auctions.ownerId, owner) : undefined,
+          product ? eq(auctions.productId, product) : undefined
+        )
+      )
+      .innerJoin(products, eq(auctions.productId, products.id))
+      .innerJoin(users, eq(auctions.ownerId, users.id))
+      .leftJoin(participants, eq(auctions.id, participants.auctionId))
+      .leftJoin(participant, eq(participants.userId, participant.id))
+      .leftJoin(winner, eq(auctions.winnerId, winner.id))
+      .groupBy(auctions.id)
+      .orderBy((t) => desc(t.startsAt))
+      .limit(limit);
 
-  return res.json({ auctions: result });
-});
+    const finalResult: ResponseAuction[] = result.map((item) => ({
+      ...item,
+      participants: JSON.parse(item.participants)
+    }));
+    return res.json({ auctions: finalResult });
+  }
+);

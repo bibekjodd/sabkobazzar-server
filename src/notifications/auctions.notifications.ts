@@ -40,7 +40,8 @@ export const auctionNotification = async ({
       description,
       entity: 'auctions',
       params: auction.id,
-      userId: user.id
+      userId: user.id,
+      type
     }),
     sendMail({ mail: user.email, subject: title, text: message })
   ]);

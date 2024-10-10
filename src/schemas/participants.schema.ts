@@ -1,3 +1,4 @@
+import { getTableColumns } from 'drizzle-orm';
 import { foreignKey, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { auctions } from './auctions.schema';
 import { users } from './users.schema';
@@ -34,7 +35,4 @@ export const participants = sqliteTable(
 
 export type Participant = typeof participants.$inferSelect;
 export type InsertParticipant = typeof participants.$inferInsert;
-export const selectParticipantSnapshot = {
-  userId: participants.userId,
-  auctionId: participants.auctionId
-};
+export const selectParticipantSnapshot = getTableColumns(participants);

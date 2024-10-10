@@ -1,6 +1,9 @@
 import { createId } from '@paralleldrive/cuid2';
+import { getTableColumns } from 'drizzle-orm';
 import { foreignKey, index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
-import { users } from './users.schema';
+import { createSelectSchema } from 'drizzle-zod';
+import { z } from 'zod';
+import { responesUserSchema, users } from './users.schema';
 
 export const products = sqliteTable(
   'products',
@@ -33,14 +36,7 @@ export const products = sqliteTable(
 
 export type Product = typeof products.$inferSelect;
 export type InsertProduct = typeof products.$inferInsert;
-
-export const selectProductSnapshot = {
-  id: products.id,
-  title: products.title,
-  image: products.image,
-  category: products.category,
-  description: products.description,
-  ownerId: products.ownerId,
-  price: products.price,
-  addedAt: products.addedAt
-};
+export const selectProductSnapshot = getTableColumns(products);
+export const selectProductSchema = createSelectSchema(products);
+export const responseProductSchema = selectProductSchema.extend({ owner: responesUserSchema });
+export type ResponseProduct = z.infer<typeof responseProductSchema>;

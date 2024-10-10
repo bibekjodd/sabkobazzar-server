@@ -1,3 +1,4 @@
+import { responesUserSchema } from '@/schemas/users.schema';
 import { z } from 'zod';
 import { ZodOpenApiPathsObject } from 'zod-openapi';
 import 'zod-openapi/extend';
@@ -12,7 +13,12 @@ export const participantsDoc: ZodOpenApiPathsObject = {
         path: z.object({ id: z.string() })
       },
       responses: {
-        200: { description: 'Participants list fetched successfully' }
+        200: {
+          description: 'Participants list fetched successfully',
+          content: {
+            'application/json': { schema: z.object({ participants: z.array(responesUserSchema) }) }
+          }
+        }
       }
     }
   },

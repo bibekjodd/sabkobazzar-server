@@ -9,68 +9,78 @@ import {
 import { handleAsync } from '@/middlewares/handle-async';
 import { addProductNotification } from '@/notifications/products.notification';
 import { auctions } from '@/schemas/auctions.schema';
-import { products, selectProductSnapshot } from '@/schemas/products.schema';
+import { products, ResponseProduct, selectProductSnapshot } from '@/schemas/products.schema';
 import { selectUserSnapshot, users } from '@/schemas/users.schema';
 import { and, desc, eq, gt, gte, like, lt, lte } from 'drizzle-orm';
 
-export const addProduct = handleAsync(async (req, res) => {
-  if (!req.user) throw new UnauthorizedException();
-  if (req.user.role === 'admin') throw new ForbiddenException("Admins can't add product");
+export const addProduct = handleAsync<unknown, { product: ResponseProduct; message: string }>(
+  async (req, res) => {
+    if (!req.user) throw new UnauthorizedException();
+    if (req.user.role === 'admin') throw new ForbiddenException("Admins can't add product");
 
-  const data = addProductSchema.parse(req.body);
-  const [addedProduct] = await db
-    .insert(products)
-    .values({ ...data, ownerId: req.user.id })
-    .returning();
+    const data = addProductSchema.parse(req.body);
+    const [addedProduct] = await db
+      .insert(products)
+      .values({ ...data, ownerId: req.user.id })
+      .returning();
 
-  if (!addedProduct) throw new BadRequestException('Could not add product at the moment');
-  addProductNotification({
-    user: req.user,
-    product: addedProduct
-  });
-  return res
-    .status(201)
-    .json({ product: { ...addedProduct, owner: req.user }, message: 'Product added successfully' });
-});
+    if (!addedProduct) throw new BadRequestException('Could not add product at the moment');
+    addProductNotification({
+      user: req.user,
+      product: addedProduct
+    });
+    return res.status(201).json({
+      product: { ...addedProduct, owner: req.user },
+      message: 'Product added successfully'
+    });
+  }
+);
 
-export const queryProducts = handleAsync(async (req, res) => {
-  const { cursor, limit, category, pricelte, pricegte, title, owner } = queryProductsSchema.parse(
-    req.query
-  );
+export const queryProducts = handleAsync<unknown, { products: ResponseProduct[] }>(
+  async (req, res) => {
+    const { cursor, limit, category, pricelte, pricegte, title, owner } = queryProductsSchema.parse(
+      req.query
+    );
 
-  const result = await db
-    .select({ ...selectProductSnapshot, owner: selectUserSnapshot })
-    .from(products)
-    .innerJoin(users, eq(products.ownerId, users.id))
-    .where(
-      and(
-        title ? like(products.title, `%${title}%`) : undefined,
-        category ? eq(products.category, category) : undefined,
-        pricelte ? lte(products.price, pricelte) : undefined,
-        pricegte ? gte(products.price, pricegte) : undefined,
-        lt(products.addedAt, cursor),
-        owner ? eq(products.ownerId, owner) : undefined
+    const result = await db
+      .select({ ...selectProductSnapshot, owner: selectUserSnapshot })
+      .from(products)
+      .innerJoin(users, eq(products.ownerId, users.id))
+      .where(
+        and(
+          title ? like(products.title, `%${title}%`) : undefined,
+          category ? eq(products.category, category) : undefined,
+          pricelte ? lte(products.price, pricelte) : undefined,
+          pricegte ? gte(products.price, pricegte) : undefined,
+          lt(products.addedAt, cursor),
+          owner ? eq(products.ownerId, owner) : undefined
+        )
       )
-    )
-    .orderBy((t) => desc(t.addedAt))
-    .limit(limit);
+      .orderBy((t) => desc(t.addedAt))
+      .limit(limit);
 
-  return res.json({ products: result });
-});
+    return res.json({ products: result });
+  }
+);
 
-export const getProductDetails = handleAsync<{ id: string }>(async (req, res) => {
-  const productId = req.params.id;
-  const [product] = await db
-    .select({ ...selectProductSnapshot, owner: selectUserSnapshot })
-    .from(products)
-    .innerJoin(users, eq(products.ownerId, users.id))
-    .where(eq(products.id, productId));
-  if (!product) throw new NotFoundException('Product not found');
+export const getProductDetails = handleAsync<{ id: string }, { product: ResponseProduct }>(
+  async (req, res) => {
+    const productId = req.params.id;
+    const [product] = await db
+      .select({ ...selectProductSnapshot, owner: selectUserSnapshot })
+      .from(products)
+      .innerJoin(users, eq(products.ownerId, users.id))
+      .where(eq(products.id, productId));
+    if (!product) throw new NotFoundException('Product not found');
 
-  return res.json({ product });
-});
+    return res.json({ product });
+  }
+);
 
-export const updateProduct = handleAsync<{ id: string }>(async (req, res) => {
+export const updateProduct = handleAsync<
+  { id: string },
+  { product: ResponseProduct; message: string }
+>(async (req, res) => {
   if (!req.user) throw new UnauthorizedException();
   const productId = req.params.id;
 
@@ -97,6 +107,9 @@ export const updateProduct = handleAsync<{ id: string }>(async (req, res) => {
     .set(data)
     .where(eq(products.id, productId))
     .returning();
-  if (!updateProduct) throw new NotFoundException('Product does not exist');
-  return res.json({ product: { ...updatedProduct, owner: req.user } });
+  if (!updatedProduct) throw new NotFoundException('Product does not exist');
+  return res.json({
+    product: { ...updatedProduct, owner: req.user },
+    message: 'Product updated successfully'
+  });
 });
