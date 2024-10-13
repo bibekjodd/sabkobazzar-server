@@ -1,10 +1,11 @@
 import { apiReference } from '@scalar/express-api-reference';
 import packageJson from 'package.json' with { type: 'json' };
-import { createDocument, ZodOpenApiPathsObject } from 'zod-openapi';
+import { createDocument } from 'zod-openapi';
 import { auctionsDoc } from './auctions.doc';
 import { authDoc } from './auth.doc';
 import { bidsDoc } from './bids.doc';
 import { eventsDoc } from './events.doc';
+import { interestsDoc } from './interests.doc';
 import { notificationsDoc } from './notifications.doc';
 import { participantsDoc } from './participants.doc';
 import { productsDoc } from './products.doc';
@@ -17,26 +18,31 @@ export const openApiSpecs = createDocument({
     description: 'Api documentation for Sabkobazzar server'
   },
   openapi: '3.1.0',
-  paths: Object.assign(
-    {
-      '/': {
-        get: {
-          summary: 'Check server status',
-          responses: {
-            200: { description: 'Server is healthy and is running fine' }
-          }
+  paths: {
+    '/': {
+      get: {
+        summary: 'Check server status',
+        responses: {
+          200: { description: 'Server is healthy and is running fine' }
         }
       }
-    } satisfies ZodOpenApiPathsObject,
-    authDoc,
-    usersDoc,
-    productsDoc,
-    auctionsDoc,
-    participantsDoc,
-    bidsDoc,
-    notificationsDoc,
-    eventsDoc
-  ),
+    },
+    '/doc': {
+      get: {
+        summary: 'Get openapi doc spec',
+        responses: { 200: { description: 'Openapi specs doc fetched successfully' } }
+      }
+    },
+    ...authDoc,
+    ...usersDoc,
+    ...productsDoc,
+    ...interestsDoc,
+    ...auctionsDoc,
+    ...participantsDoc,
+    ...bidsDoc,
+    ...notificationsDoc,
+    ...eventsDoc
+  },
   components: {
     securitySchemes: {
       googleOAuth2: {

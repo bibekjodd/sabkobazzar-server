@@ -33,7 +33,7 @@ export const joinAuction = handleAsync<
   if (req.user.role === 'admin') throw new ForbiddenException("Admins can't join the auction");
 
   const auctionId = req.params.id;
-  const auction = await getAuctionDetailsById(auctionId);
+  const auction = await getAuctionDetailsById({ auctionId, userId: '' });
 
   if (!auction) throw new NotFoundException('Auction does not exist');
   if (auction.ownerId === req.user.id)

@@ -59,9 +59,10 @@ export type InsertAuction = typeof auctions.$inferInsert;
 export const selectAuctionsSnapshot = getTableColumns(auctions);
 export const selectAuctionSchema = createSelectSchema(auctions);
 export const responseAuctionSchema = selectAuctionSchema.extend({
-  product: selectProductSchema,
+  product: selectProductSchema.extend({ isInterested: z.boolean() }),
   owner: responesUserSchema,
   winner: responesUserSchema.nullable(),
-  participants: z.array(responesUserSchema)
+  participants: z.array(responesUserSchema),
+  isInvited: z.boolean()
 });
 export type ResponseAuction = z.infer<typeof responseAuctionSchema>;

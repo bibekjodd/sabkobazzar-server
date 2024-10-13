@@ -38,5 +38,8 @@ export type Product = typeof products.$inferSelect;
 export type InsertProduct = typeof products.$inferInsert;
 export const selectProductSnapshot = getTableColumns(products);
 export const selectProductSchema = createSelectSchema(products);
-export const responseProductSchema = selectProductSchema.extend({ owner: responesUserSchema });
+export const responseProductSchema = selectProductSchema.extend({
+  owner: responesUserSchema,
+  isInterested: z.boolean()
+});
 export type ResponseProduct = z.infer<typeof responseProductSchema>;

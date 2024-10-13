@@ -9,11 +9,13 @@ import {
 import { handleAsync } from '@/middlewares/handle-async';
 import { auctionNotification } from '@/notifications/auctions.notifications';
 import { auctions, ResponseAuction, selectAuctionsSnapshot } from '@/schemas/auctions.schema';
+import { interests } from '@/schemas/interests.schema';
+import { invites } from '@/schemas/invites.schema';
 import { participants } from '@/schemas/participants.schema';
 import { products, selectProductSnapshot } from '@/schemas/products.schema';
-import { selectUserSnapshot, users } from '@/schemas/users.schema';
+import { selectUserSnapshot, User, users } from '@/schemas/users.schema';
 import { getAuctionDetailsById, selectJsonArrayParticipants } from '@/services/auctions.services';
-import { and, asc, desc, eq, getTableColumns, gt, lt } from 'drizzle-orm';
+import { and, asc, desc, eq, getTableColumns, gt, lt, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/sqlite-core';
 
 export const registerAuction = handleAsync<
@@ -27,7 +29,15 @@ export const registerAuction = handleAsync<
   const data = registerAuctionSchema.parse(req.body);
   const productId = req.params.id;
 
-  const [product] = await db.select().from(products).where(eq(products.id, productId));
+  const [product] = await db
+    .select({ ...selectProductSnapshot, isInterested: sql<boolean>`${interests.productId}` })
+    .from(products)
+    .leftJoin(
+      interests,
+      and(eq(products.id, interests.productId), eq(interests.userId, req.user.id))
+    )
+    .groupBy(products.id)
+    .where(eq(products.id, productId));
   if (!product) throw new NotFoundException('Product does not exist');
   if (product.ownerId !== req.user.id)
     throw new ForbiddenException('You can only register auction to the product owned by yourself');
@@ -63,7 +73,8 @@ export const registerAuction = handleAsync<
       owner: owner!,
       product,
       winner: null,
-      participants: []
+      participants: [],
+      isInvited: false
     }
   });
 });
@@ -71,7 +82,7 @@ export const registerAuction = handleAsync<
 export const getAuctionDetails = handleAsync<{ id: string }, { auction: ResponseAuction }>(
   async (req, res) => {
     const auctionId = req.params.id;
-    const auction = await getAuctionDetailsById(auctionId);
+    const auction = await getAuctionDetailsById({ auctionId, userId: req.user?.id || '' });
     return res.json({ auction });
   }
 );
@@ -101,8 +112,9 @@ export const getUpcomingAuctions = handleAsync<unknown, { auctions: ResponseAuct
       .select({
         ...selectAuctionsSnapshot,
         owner: selectUserSnapshot,
-        product: selectProductSnapshot,
-        participants: selectJsonArrayParticipants()
+        product: { ...selectProductSnapshot, isInterested: sql<boolean>`${interests.productId}` },
+        participants: selectJsonArrayParticipants(),
+        isInvited: sql<boolean>`${invites.userId}`
       })
       .from(auctions)
       .where(
@@ -115,9 +127,17 @@ export const getUpcomingAuctions = handleAsync<unknown, { auctions: ResponseAuct
         )
       )
       .innerJoin(products, eq(auctions.productId, products.id))
+      .leftJoin(
+        interests,
+        and(eq(products.id, interests.productId), eq(interests.userId, req.user?.id || ''))
+      )
       .innerJoin(users, eq(auctions.ownerId, users.id))
       .leftJoin(participants, eq(auctions.id, participants.auctionId))
       .leftJoin(participant, eq(participants.userId, participant.id))
+      .leftJoin(
+        invites,
+        and(eq(auctions.id, invites.auctionId), eq(invites.userId, req.user?.id || ''))
+      )
       .groupBy(auctions.id)
       .limit(limit)
       .orderBy((t) => asc(t.startsAt));
@@ -125,7 +145,11 @@ export const getUpcomingAuctions = handleAsync<unknown, { auctions: ResponseAuct
     const finalResult: ResponseAuction[] = result.map((item) => ({
       ...item,
       winner: null,
-      participants: JSON.parse(item.participants)
+      participants: (JSON.parse(item.participants) as User[]).filter(
+        (participant) => !!participant.id
+      ),
+      isInvited: !!item.isInvited,
+      product: { ...item.product, isInterested: !!item.product.isInterested }
     }));
     return res.json({ auctions: finalResult });
   }
@@ -140,7 +164,7 @@ export const getRecentAuctions = handleAsync<unknown, { auctions: ResponseAuctio
       .select({
         ...selectAuctionsSnapshot,
         owner: selectUserSnapshot,
-        product: selectProductSnapshot,
+        product: { ...selectProductSnapshot, isInterested: sql<boolean>`${interests.productId}` },
         participants: selectJsonArrayParticipants(),
         winner: getTableColumns(winner)
       })
@@ -154,6 +178,10 @@ export const getRecentAuctions = handleAsync<unknown, { auctions: ResponseAuctio
         )
       )
       .innerJoin(products, eq(auctions.productId, products.id))
+      .leftJoin(
+        interests,
+        and(eq(products.id, interests.productId), eq(interests.userId, req.user?.id || ''))
+      )
       .innerJoin(users, eq(auctions.ownerId, users.id))
       .leftJoin(participants, eq(auctions.id, participants.auctionId))
       .leftJoin(participant, eq(participants.userId, participant.id))
@@ -164,7 +192,11 @@ export const getRecentAuctions = handleAsync<unknown, { auctions: ResponseAuctio
 
     const finalResult: ResponseAuction[] = result.map((item) => ({
       ...item,
-      participants: JSON.parse(item.participants)
+      isInvited: false,
+      participants: (JSON.parse(item.participants) as User[]).filter(
+        (participant) => !!participant.id
+      ),
+      product: { ...item.product, isInterested: !!item.product.isInterested }
     }));
     return res.json({ auctions: finalResult });
   }
