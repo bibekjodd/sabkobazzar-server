@@ -9,7 +9,7 @@ export const joinedAuction = handleAsync<{ id: string }, { message: string }>(as
 
   const auctionId = req.params.id;
   await validateParticipant({ userId: req.user.id, auctionId });
-  onJoinedAuction({ auctionId, user: req.user });
+  onJoinedAuction(auctionId, { user: req.user });
   return res.json({ message: 'Joined auction successfully' });
 });
 
@@ -18,7 +18,7 @@ export const leftAuction = handleAsync<{ id: string }, { message: string }>(asyn
 
   const auctionId = req.params.id;
   await validateParticipant({ userId: req.user.id, auctionId });
-  onLeftAuction({ auctionId, user: req.user });
+  onLeftAuction(auctionId, { user: req.user });
   return res.json({ message: 'left auction successfully' });
 });
 
@@ -28,6 +28,6 @@ export const sendMessage = handleAsync<{ id: string }, { message: string }>(asyn
   const auctionId = req.params.id;
   await validateParticipant({ userId: req.user.id, auctionId });
   const { text, emoji } = sendMessageSchema.parse(req.body);
-  onSendMessage({ auctionId, text, emoji });
+  onSendMessage(auctionId, { text, emoji });
   return res.json({ message: 'Message sent successfully' });
 });

@@ -56,7 +56,7 @@ export const placeBid = handleAsync<{ id: string }, { bid: ResponseBid; message:
       .values({ amount, auctionId, bidderId: req.user.id })
       .returning();
     if (!bid) throw new BadRequestException('Could not place bid at the moment');
-    onBid({ auctionId, bid: { ...bid, bidder: req.user } });
+    onBid(auctionId, { bid: { ...bid, bidder: req.user } });
     return res.json({ message: 'Bid placed successfully', bid: { ...bid, bidder: req.user } });
   }
 );

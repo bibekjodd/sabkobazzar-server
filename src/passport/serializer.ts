@@ -1,7 +1,7 @@
 import { db } from '@/lib/database';
 import { notifications } from '@/schemas/notifications.schema';
 import { selectUserSnapshot, users } from '@/schemas/users.schema';
-import { and, eq, gt, sql } from 'drizzle-orm';
+import { and, eq, gt } from 'drizzle-orm';
 import passport from 'passport';
 
 export const serializer = () => {
@@ -10,22 +10,36 @@ export const serializer = () => {
   });
   passport.deserializeUser(async (id: string, done) => {
     try {
-      const [user] = await db
-        .select({
-          ...selectUserSnapshot,
-          totalUnreadNotifications: sql<number>`count(${notifications.id})`
-        })
-        .from(users)
+      const userPromise = db
+        .update(users)
+        .set({ lastOnline: new Date().toISOString() })
         .where(eq(users.id, id))
-        .leftJoin(
-          notifications,
+        .returning(selectUserSnapshot)
+        .execute()
+        .then((result) => result[0]);
+      const notificationsPromise = db
+        .select()
+        .from(notifications)
+        .innerJoin(
+          users,
           and(
             eq(notifications.userId, users.id),
             gt(notifications.receivedAt, users.lastNotificationReadAt)
           )
         )
-        .groupBy(users.id);
-      return done(null, user || null);
+        .where(eq(notifications.userId, id))
+        .groupBy(notifications.id)
+        .execute()
+        .then((result) => result.length);
+
+      const [user, totalUnreadNotifications] = await Promise.all([
+        userPromise,
+        notificationsPromise
+      ]);
+
+      if (!user) return done(null, null);
+
+      return done(null, { ...user, totalUnreadNotifications });
     } catch (error) {
       return done(error, null);
     }

@@ -4,15 +4,13 @@ import cors from 'cors';
 import express from 'express';
 import morgan from 'morgan';
 import passport from 'passport';
-import { absolutePath } from 'swagger-ui-dist';
-import swaggerUi from 'swagger-ui-express';
 import { env, validateEnv } from './config/env.config';
 import { NotFoundException } from './lib/exceptions';
 import { devConsole, sessionOptions } from './lib/utils';
 import { handleAsync } from './middlewares/handle-async';
 import { handleErrorRequest } from './middlewares/handle-error-request';
 import { handleSessionRegenerate } from './middlewares/handle-session-regenerate';
-import { openApiSpecs } from './openapi';
+import { openApiSpecs, serveApiReference } from './openapi';
 import { GoogleStrategy } from './passport/google.strategy';
 import { serializer } from './passport/serializer';
 import { auctionsRoute } from './routes/auctions.route';
@@ -60,18 +58,10 @@ app.use('/api/participants', participantsRoute);
 app.use('/api/bids', bidsRoute);
 app.use('/api/notifications', notificationsRoute);
 app.use('/api/events', eventsRoute);
-if (env.NODE_ENV === 'production') {
-  app.use('/docs', express.static(absolutePath()));
-}
-app.use(
-  '/docs',
-  swaggerUi.serve,
-  swaggerUi.setup(openApiSpecs, {
-    customCssUrl: 'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.17.14/swagger-ui.css',
-    customJs: 'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.17.14/swagger-ui-bundle.js',
-    customSiteTitle: 'Sabkobazzar'
-  })
-);
+app.get('/doc', (req, res) => {
+  return res.json(openApiSpecs);
+});
+app.use('/reference', serveApiReference);
 app.use(() => {
   throw new NotFoundException();
 });

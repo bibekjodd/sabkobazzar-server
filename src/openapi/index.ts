@@ -1,20 +1,22 @@
+import { apiReference } from '@scalar/express-api-reference';
+import packageJson from 'package.json' with { type: 'json' };
 import { createDocument, ZodOpenApiPathsObject } from 'zod-openapi';
 import { auctionsDoc } from './auctions.doc';
 import { authDoc } from './auth.doc';
 import { bidsDoc } from './bids.doc';
+import { eventsDoc } from './events.doc';
 import { notificationsDoc } from './notifications.doc';
 import { participantsDoc } from './participants.doc';
 import { productsDoc } from './products.doc';
 import { usersDoc } from './users.doc';
-import { eventsDoc } from './events.doc';
 
 export const openApiSpecs = createDocument({
   info: {
     title: 'Sabkobazzar Server',
-    version: '1.0.0',
+    version: packageJson.version,
     description: 'Api documentation for Sabkobazzar server'
   },
-  openapi: '3.0.0',
+  openapi: '3.1.0',
   paths: Object.assign(
     {
       '/': {
@@ -51,4 +53,12 @@ export const openApiSpecs = createDocument({
       }
     }
   }
+});
+
+export const serveApiReference = apiReference({
+  spec: { content: openApiSpecs },
+  theme: 'kepler',
+  defaultHttpClient: { targetKey: 'javascript', clientKey: 'fetch' },
+  layout: 'modern',
+  darkMode: true
 });

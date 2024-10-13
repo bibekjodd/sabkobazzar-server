@@ -1,3 +1,4 @@
+import { onReceivedNotification } from '@/lib/events';
 import { sendMail } from '@/lib/send-mail';
 import { formatDate } from '@/lib/utils';
 import { addNotification } from '@/services/notifications.service';
@@ -36,6 +37,7 @@ export const participantNotification = async ({
   }
 
   await Promise.all([
+    type !== 'leave' && sendMail({ mail: user.email, subject: title, text: message }),
     addNotification({
       entity: 'auctions',
       params: auction.id,
@@ -43,7 +45,9 @@ export const participantNotification = async ({
       userId: user.id,
       description,
       type
-    }),
-    type !== 'leave' && sendMail({ mail: user.email, subject: title, text: message })
+    }).then(([notification]) => {
+      if (!notification) return;
+      onReceivedNotification(notification.userId, { notification });
+    })
   ]);
 };
