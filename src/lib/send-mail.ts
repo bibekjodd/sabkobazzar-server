@@ -1,13 +1,13 @@
 import { env } from '@/config/env.config';
 import nodemailer from 'nodemailer';
 
-type Options = {
+export type SendMailOptions = {
   text: string;
   mail: string;
   subject: string;
 };
 
-export const sendMail = async (...data: Options[]) => {
+export const sendMail = async (...data: SendMailOptions[]) => {
   if (env.NODE_ENV !== 'production') return;
   const transporter = nodemailer.createTransport({
     service: env.SMTP_SERVICE,

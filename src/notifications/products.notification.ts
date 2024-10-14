@@ -1,4 +1,3 @@
-import { onReceivedNotification } from '@/lib/events';
 import { sendMail } from '@/lib/send-mail';
 import { addNotification } from '@/services/notifications.service';
 
@@ -24,9 +23,6 @@ export const addProductNotification = async ({ user, product }: AddProductNotifi
       entity: 'products',
       params: product.id,
       userId: user.id
-    }).then(([notification]) => {
-      if (!notification) return;
-      onReceivedNotification(notification.userId, { notification });
     })
   ]);
 };

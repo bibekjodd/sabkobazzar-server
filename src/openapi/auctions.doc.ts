@@ -155,7 +155,11 @@ export const auctionsDoc: ZodOpenApiPathsObject = {
           content: {
             'application/json': {
               schema: z.object({
-                users: z.array(responesUserSchema.extend({ isInvited: z.boolean() }))
+                users: z.array(
+                  responesUserSchema.extend({
+                    status: z.enum(['invited', 'joined', 'rejected', 'kicked']).nullable()
+                  })
+                )
               })
             }
           }
@@ -198,26 +202,6 @@ export const auctionsDoc: ZodOpenApiPathsObject = {
     }
   },
 
-  '/api/auctions/{id}/bid': {
-    put: {
-      tags,
-      summary: 'Place a bid',
-      requestParams: {
-        path: z.object({ id: z.string() }).openapi({ description: 'Auction id' })
-      },
-      requestBody: { content: { 'application/json': { schema: placeBidSchema } } },
-      responses: {
-        200: {
-          description: 'Bid placed successfully',
-          content: { 'application/json': { schema: z.object({ bid: responseBidSchema }) } }
-        },
-        400: { description: 'Invalid amount sent for bid or auction has not started' },
-        401: { description: 'User is not authenticated' },
-        403: { description: "Admins can't place the bid" }
-      }
-    }
-  },
-
   '/api/auctions/{id}/bids': {
     get: {
       tags,
@@ -235,6 +219,23 @@ export const auctionsDoc: ZodOpenApiPathsObject = {
         },
         400: { description: 'Invalid request query' }
       }
+    },
+    put: {
+      tags,
+      summary: 'Place a bid',
+      requestParams: {
+        path: z.object({ id: z.string() }).openapi({ description: 'Auction id' })
+      },
+      requestBody: { content: { 'application/json': { schema: placeBidSchema } } },
+      responses: {
+        201: {
+          description: 'Bid placed successfully',
+          content: { 'application/json': { schema: z.object({ bid: responseBidSchema }) } }
+        },
+        400: { description: 'Invalid amount sent for bid or auction has not started' },
+        401: { description: 'User is not authenticated' },
+        403: { description: "Admins can't place the bid" }
+      }
     }
   },
 
@@ -246,7 +247,12 @@ export const auctionsDoc: ZodOpenApiPathsObject = {
         path: z.object({ id: z.string() }).openapi({ description: 'Auction id' })
       },
       responses: {
-        200: { description: 'Bids snapshot fetched successfully' }
+        200: {
+          description: 'Bids snapshot fetched successfully',
+          content: {
+            'application/json': { schema: z.object({ bids: z.array(responseBidSchema) }) }
+          }
+        }
       }
     }
   }

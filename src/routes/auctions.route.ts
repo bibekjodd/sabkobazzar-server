@@ -30,6 +30,5 @@ router.put('/:auctionId/invite/:userId', inviteParticipant);
 router.get('/:id/search-invite', searchInviteUsers);
 router.put('/:auctionId/kick/:userId', kickParticipant);
 
-router.put('/:id/bid', placeBid);
-router.get('/:id/bids', fetchBids);
+router.route('/:id/bids').get(fetchBids).post(placeBid);
 router.get('/:id/bids-snapshot', getBidsSnapshot);

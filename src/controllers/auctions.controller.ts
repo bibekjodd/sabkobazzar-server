@@ -14,20 +14,21 @@ import {
   UnauthorizedException
 } from '@/lib/exceptions';
 import { handleAsync } from '@/middlewares/handle-async';
-import { auctionNotification } from '@/notifications/auctions.notifications';
-import { participantNotification } from '@/notifications/participants.notification';
+import {
+  auctionParticipantNotification,
+  cancelAuctionNotifications,
+  registerAuctionNotification
+} from '@/notifications/auctions.notifications';
 import { auctions, ResponseAuction, selectAuctionsSnapshot } from '@/schemas/auctions.schema';
 import { bids, ResponseBid, selectBidSnapshot } from '@/schemas/bids.schema';
 import { interests } from '@/schemas/interests.schema';
-import { invites } from '@/schemas/invites.schema';
-import { participants } from '@/schemas/participants.schema';
+import { participants, ParticipationStatus } from '@/schemas/participants.schema';
 import { products, selectProductSnapshot } from '@/schemas/products.schema';
 import { ResponseUser, selectUserSnapshot, User, users } from '@/schemas/users.schema';
 import {
+  auctionDetails,
   findAuctionParticipants,
-  getAuctionDetailsById,
-  inviteParticipantToAuction,
-  selectJsonArrayParticipants
+  inviteParticipantToAuction
 } from '@/services/auctions.services';
 import { and, asc, desc, eq, gt, like, lt, lte, max, ne, or, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/sqlite-core';
@@ -73,11 +74,9 @@ export const registerAuction = handleAsync<
     .returning();
   if (!registeredAuction)
     throw new BadRequestException('Could not register product for auction at the moment');
-  auctionNotification({
+  registerAuctionNotification({
     auction: registeredAuction,
-    product: product,
-    user: req.user,
-    type: 'register'
+    user: req.user
   });
   const [owner] = await db.select().from(users).where(eq(users.id, registeredAuction.ownerId));
   return res.status(201).json({
@@ -87,8 +86,8 @@ export const registerAuction = handleAsync<
       owner: owner!,
       product,
       winner: null,
-      participants: [],
-      isInvited: false
+      participationStatus: null,
+      totalParticipants: 0
     }
   });
 });
@@ -96,7 +95,7 @@ export const registerAuction = handleAsync<
 export const getAuctionDetails = handleAsync<{ id: string }, { auction: ResponseAuction }>(
   async (req, res) => {
     const auctionId = req.params.id;
-    const auction = await getAuctionDetailsById({ auctionId, userId: req.user?.id || '' });
+    const auction = await auctionDetails({ auctionId, userId: req.user?.id || '' });
     return res.json({ auction });
   }
 );
@@ -105,7 +104,7 @@ export const cancelAuction = handleAsync<{ id: string }, { message: string }>(as
   if (!req.user) throw new UnauthorizedException();
 
   const auctionId = req.params.id;
-  const [auction] = await db.select().from(auctions).where(eq(auctions.id, auctionId));
+  const auction = await auctionDetails({ auctionId: auctionId, userId: req.user.id });
 
   if (!auction) throw new NotFoundException('Auction does not exist');
   if (auction.isFinished) throw new BadRequestException('Auction is already finished');
@@ -115,20 +114,26 @@ export const cancelAuction = handleAsync<{ id: string }, { message: string }>(as
     throw new ForbiddenException('Only product owner or admin can cancel the auction');
 
   await db.update(auctions).set({ isCancelled: true }).where(eq(auctions.id, auctionId));
+  findAuctionParticipants(auction.id).then((result) => {
+    cancelAuctionNotifications({
+      auction,
+      users: [req.user!, ...result]
+    });
+  });
   return res.json({ message: 'Auction cancelled successfully' });
 });
 
 export const queryAuctions = handleAsync<unknown, { auctions: ResponseAuction[] }>(
   async (req, res) => {
     const { cursor, limit, owner, product, order } = queryAuctionsSchema.parse(req.query);
-    const participant = alias(users, 'participant');
+    const participant = alias(participants, 'participant');
     const result = await db
       .select({
         ...selectAuctionsSnapshot,
         owner: selectUserSnapshot,
         product: { ...selectProductSnapshot, isInterested: sql<boolean>`${interests.productId}` },
-        participants: selectJsonArrayParticipants(),
-        isInvited: sql<boolean>`${invites.userId}`
+        participationStatus: participant.status,
+        totalParticipants: sql<number>`sum(case when ${participants.status}='joined' then 1 else 0 end)`
       })
       .from(auctions)
       .where(
@@ -147,10 +152,9 @@ export const queryAuctions = handleAsync<unknown, { auctions: ResponseAuction[] 
       )
       .innerJoin(users, eq(auctions.ownerId, users.id))
       .leftJoin(participants, eq(auctions.id, participants.auctionId))
-      .leftJoin(participant, eq(participants.userId, participant.id))
       .leftJoin(
-        invites,
-        and(eq(auctions.id, invites.auctionId), eq(invites.userId, req.user?.id || ''))
+        participant,
+        and(eq(auctions.id, participant.auctionId), eq(participant.userId, req.user?.id || ''))
       )
       .groupBy(auctions.id)
       .limit(limit)
@@ -159,10 +163,6 @@ export const queryAuctions = handleAsync<unknown, { auctions: ResponseAuction[] 
     const finalResult: ResponseAuction[] = result.map((item) => ({
       ...item,
       winner: null,
-      participants: (JSON.parse(item.participants) as User[]).filter(
-        (participant) => !!participant.id
-      ),
-      isInvited: !!item.isInvited,
       product: { ...item.product, isInterested: !!item.product.isInterested }
     }));
     return res.json({ auctions: finalResult });
@@ -185,32 +185,33 @@ export const joinAuction = handleAsync<
   if (req.user.role === 'admin') throw new ForbiddenException("Admins can't join the auction");
 
   const auctionId = req.params.id;
-  const auction = await getAuctionDetailsById({ auctionId, userId: '' });
+  const auction = await auctionDetails({ auctionId, userId: req.user.id });
 
   if (!auction) throw new NotFoundException('Auction does not exist');
   if (auction.ownerId === req.user.id)
     throw new ForbiddenException('Now allowed to join the auction hosted by self');
 
-  const isJoined = auction.participants.find((user) => user.id === req.user?.id);
-  if (isJoined) throw new BadRequestException('You have already joined the auction');
-
-  if (auction.isInviteOnly) {
-    const [isInvited] = await db
-      .select()
-      .from(invites)
-      .where(and(eq(invites.auctionId, auctionId), eq(invites.userId, req.user.id)));
-    if (!isInvited) throw new ForbiddenException('Only invited users can join the auction');
-  }
+  if (auction.participationStatus === 'joined')
+    throw new BadRequestException('You have already joined the auction');
+  if (auction.participationStatus === 'kicked')
+    throw new BadRequestException('You are already kicked from the auction');
+  if (auction.isInviteOnly && auction.participationStatus === 'rejected')
+    throw new BadRequestException('You have already rejected the invitation');
+  if (auction.isInviteOnly && auction.participationStatus !== 'invited')
+    throw new BadRequestException('Only invited users can join the auction');
 
   if (auction.isCancelled) throw new BadRequestException('Auction is already cancelled');
   if (auction.isFinished) throw new BadRequestException('Auction is aleady completed');
+  if (Date.now() > new Date(auction.startsAt).getTime())
+    throw new BadRequestException('Auction has already started');
 
-  if (auction.participants.length >= auction.maxBidders)
+  if (auction.totalParticipants >= auction.maxBidders)
     throw new BadRequestException('Auction has already reached the max participants limit');
 
-  await db.insert(participants).values({ userId: req.user.id, auctionId });
-  auction.participants.push(req.user);
-  participantNotification({
+  await db
+    .insert(participants)
+    .values({ userId: req.user.id, auctionId, status: 'joined', at: new Date().toISOString() });
+  auctionParticipantNotification({
     auction: auction,
     type: 'join',
     user: req.user
@@ -218,22 +219,6 @@ export const joinAuction = handleAsync<
 
   return res.json({ message: 'Joined auction successfully', auction });
 });
-
-export const inviteParticipant = handleAsync<{ userId: string; auctionId: string }>(
-  async (req, res) => {
-    if (!req.user) throw new UnauthorizedException();
-
-    const { auctionId, userId } = req.params;
-    const { auction, participant } = await inviteParticipantToAuction({
-      auctionId,
-      ownerId: req.user.id,
-      userId
-    });
-    participantNotification({ auction, type: 'invite', user: participant });
-
-    return res.json({ message: 'User invited successfully' });
-  }
-);
 
 export const leaveAuction = handleAsync<{ id: string }, { message: string }>(async (req, res) => {
   if (!req.user) throw new UnauthorizedException();
@@ -243,7 +228,10 @@ export const leaveAuction = handleAsync<{ id: string }, { message: string }>(asy
   const [auction] = await db
     .select({ ...selectAuctionsSnapshot })
     .from(participants)
-    .innerJoin(auctions, eq(participants.auctionId, auctions.id))
+    .innerJoin(
+      auctions,
+      and(eq(participants.auctionId, auctions.id), eq(participants.status, 'joined'))
+    )
     .where(and(eq(participants.auctionId, auctionId), eq(participants.userId, req.user.id)))
     .groupBy(auctions.id);
 
@@ -256,14 +244,32 @@ export const leaveAuction = handleAsync<{ id: string }, { message: string }>(asy
   if (sixHoursFromNow > startTime)
     throw new ForbiddenException("Can't leave auction before 6 hours of starting");
 
+  if (Date.now() > new Date(auction.startsAt).getTime())
+    throw new BadRequestException('Auction is already started');
+
   await db
     .delete(participants)
     .where(and(eq(participants.auctionId, auctionId), eq(participants.userId, req.user.id)));
 
-  participantNotification({ auction, type: 'leave', user: req.user });
-
+  auctionParticipantNotification({ auction, type: 'leave', user: req.user });
   return res.json({ message: 'Left auction successfully' });
 });
+
+export const inviteParticipant = handleAsync<{ userId: string; auctionId: string }>(
+  async (req, res) => {
+    if (!req.user) throw new UnauthorizedException();
+
+    const { auctionId, userId } = req.params;
+    const { auction, participant } = await inviteParticipantToAuction({
+      auctionId,
+      ownerId: req.user.id,
+      userId
+    });
+    auctionParticipantNotification({ auction, type: 'invite', user: participant });
+
+    return res.json({ message: 'User invited successfully' });
+  }
+);
 
 export const kickParticipant = handleAsync<
   { auctionId: string; userId: string },
@@ -280,35 +286,27 @@ export const kickParticipant = handleAsync<
     .where(eq(users.id, userId))
     .execute()
     .then((res) => res[0]);
-  const auctionResultPromise = db
-    .select({ ...selectAuctionsSnapshot, product: selectProductSnapshot })
-    .from(auctions)
-    .innerJoin(products, eq(auctions.productId, products.id))
-    .where(
-      and(
-        eq(auctions.id, auctionId),
-        eq(auctions.isFinished, false),
-        eq(auctions.isCancelled, false)
-      )
-    )
-    .groupBy(auctions.id)
-    .execute()
-    .then((res) => res[0]);
+  const auctionResultPromise = auctionDetails({ userId, auctionId });
 
   const [participant, auction] = await Promise.all([participantPromise, auctionResultPromise]);
 
   if (!participant) throw new NotFoundException('Participant does not exist');
-  if (!auction) throw new NotFoundException('Auction does not exist');
   const isStarted = Date.now() >= new Date(auction.startsAt).getTime();
   if (isStarted) throw new ForbiddenException("Can't kick bidder after the auction has started");
-
   if (!(req.user.role === 'admin' || req.user.id === auction.ownerId))
     throw new ForbiddenException('Only admin or product owner can kick the participant');
+  if (auction.participationStatus === 'kicked')
+    throw new BadRequestException('User is already kicked from the auction');
+  if (auction.participationStatus === 'rejected')
+    throw new BadRequestException('User has already rejected the invitation');
+  if (auction.participationStatus !== 'joined')
+    throw new BadRequestException('User has not joined the auction');
 
   await db
-    .delete(participants)
+    .update(participants)
+    .set({ status: 'kicked' })
     .where(and(eq(participants.auctionId, auctionId), eq(participants.userId, userId)));
-  participantNotification({ auction, type: 'kick', user: participant });
+  auctionParticipantNotification({ auction, type: 'kick', user: participant });
 
   return res.json({ message: 'Kicked participant successfully' });
 });
@@ -344,9 +342,19 @@ export const placeBid = handleAsync<{ id: string }, { bid: ResponseBid; message:
     if (!auction) throw new NotFoundException('Auction does not exist');
 
     const { amount } = placeBidSchema.parse(req.body);
-    const currentBid = auction.currentBid || auction.minBid - 1;
-    if (amount <= currentBid)
-      throw new BadRequestException(`Bid must be higher than ${currentBid}`);
+    if (auction.currentBid) {
+      if (amount < auction.currentBid * 1.05)
+        throw new BadRequestException(
+          `Bid must be at least ${Math.round(auction.currentBid * 1.05)}`
+        );
+      if (amount > auction.currentBid * 1.5)
+        throw new BadRequestException(
+          `Bid should not exceed ${Math.round(auction.currentBid * 1.5)}`
+        );
+    }
+    if (!auction.currentBid && amount < auction.minBid)
+      throw new BadRequestException(`Bid must be at least ${auction.minBid}`);
+
     const isAuctionEnded = Date.now() > new Date(auction.startsAt).getTime() + 60 * 60 * 1000;
     if (isAuctionEnded) throw new BadRequestException('Auction is already ended');
 
@@ -356,7 +364,9 @@ export const placeBid = handleAsync<{ id: string }, { bid: ResponseBid; message:
       .returning();
     if (!bid) throw new BadRequestException('Could not place bid at the moment');
     onBid(auctionId, { bid: { ...bid, bidder: req.user } });
-    return res.json({ message: 'Bid placed successfully', bid: { ...bid, bidder: req.user } });
+    return res
+      .status(201)
+      .json({ message: 'Bid placed successfully', bid: { ...bid, bidder: req.user } });
   }
 );
 
@@ -413,7 +423,7 @@ export const getBidsSnapshot = handleAsync<{ id: string }, { bids: ResponseBid[]
 
 export const searchInviteUsers = handleAsync<
   { id: string },
-  { users: Array<User & { isInvited: boolean }> }
+  { users: Array<User & { status: ParticipationStatus }> }
 >(async (req, res) => {
   if (!req.user) throw new UnauthorizedException();
   const auctionId = req.params.id;
@@ -421,9 +431,12 @@ export const searchInviteUsers = handleAsync<
   const { limit, page, q } = searchInviteUsersSchema.parse(req.query);
   const offset = (page - 1) * limit;
   const result = await db
-    .select({ ...selectUserSnapshot, isInvited: sql<boolean>`${invites.userId}` })
+    .select({ ...selectUserSnapshot, status: participants.status })
     .from(users)
-    .leftJoin(invites, and(eq(invites.auctionId, auctionId), eq(invites.userId, users.id)))
+    .leftJoin(
+      participants,
+      and(eq(participants.auctionId, auctionId), eq(participants.userId, users.id))
+    )
     .limit(limit)
     .offset(offset)
     .where(
@@ -433,9 +446,5 @@ export const searchInviteUsers = handleAsync<
       )
     )
     .groupBy(users.id);
-
-  for (const user of result) {
-    user.isInvited = !!user.isInvited;
-  }
   return res.json({ users: result });
 });

@@ -62,7 +62,7 @@ export const responseAuctionSchema = selectAuctionSchema.extend({
   product: selectProductSchema.extend({ isInterested: z.boolean() }),
   owner: responesUserSchema,
   winner: responesUserSchema.nullable(),
-  participants: z.array(responesUserSchema),
-  isInvited: z.boolean()
+  participationStatus: z.enum(['joined', 'invited', 'kicked', 'rejected']).nullable(),
+  totalParticipants: z.number()
 });
 export type ResponseAuction = z.infer<typeof responseAuctionSchema>;

@@ -1,4 +1,5 @@
 import { db } from '@/lib/database';
+import { onReceivedNotification } from '@/lib/events';
 import { InsertNotification, notifications } from '@/schemas/notifications.schema';
 import { users } from '@/schemas/users.schema';
 import { eq, sql } from 'drizzle-orm';
@@ -22,5 +23,15 @@ export const addNotification = async (...data: InsertNotification[]) => {
       .execute();
   }
 
-  return db.insert(notifications).values(data).returning().execute();
+  return db
+    .insert(notifications)
+    .values(data)
+    .returning()
+    .execute()
+    .then((result) => {
+      for (const notification of result) {
+        onReceivedNotification(notification.userId, { notification });
+      }
+      return result;
+    });
 };
