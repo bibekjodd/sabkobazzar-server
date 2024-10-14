@@ -3,7 +3,7 @@ import { imageSchema } from './users.dto';
 
 export const registerAuctionSchema = z.object({
   title: z.string().trim().max(200, 'Too long title'),
-  description: z.string().trim().max(500, 'Too long description').optional(),
+  description: z.string().trim().max(1000, 'Too long description').optional(),
   isInviteOnly: z.boolean().default(false),
   banner: imageSchema.optional(),
   lot: z.number().min(1).max(10, "Lot can't exceed 10"),
@@ -42,12 +42,32 @@ export const registerAuctionSchema = z.object({
     .default(10)
 });
 
-export const getUpcomingAuctionsQuerySchema = z.object({
+export const queryAuctionsSchema = z.object({
   cursor: z
     .string()
     .datetime()
     .default(() => new Date().toISOString()),
-  limit: z.preprocess((val) => Number(val) || 20, z.number().min(1).max(20)).default(20),
+  limit: z.preprocess((val) => Number(val) || undefined, z.number().min(1).max(100)).default(20),
   owner: z.string().optional(),
-  product: z.string().optional()
+  product: z.string().optional(),
+  order: z.enum(['asc', 'desc']).default('asc')
+});
+
+export const placeBidSchema = z.object({
+  amount: z
+    .number()
+    .positive()
+    .transform((val) => Math.round(val))
+});
+
+export const fetchBidsQuerySchema = z.object({
+  cursor: z.string().datetime().optional(),
+  limit: z.preprocess((val) => Number(val) || undefined, z.number().min(1).max(100).default(20)),
+  order: z.enum(['asc', 'desc']).default('desc')
+});
+
+export const searchInviteUsersSchema = z.object({
+  q: z.string().optional(),
+  limit: z.preprocess((val) => Number(val) || undefined, z.number().min(1).max(100).default(20)),
+  page: z.preprocess((val) => Number(val) || undefined, z.number().min(1).default(1))
 });

@@ -11,7 +11,7 @@ export const auctions = sqliteTable(
   {
     id: text('id').notNull().$defaultFn(createId),
     title: text('title', { length: 200 }).notNull(),
-    description: text('description', { length: 500 }),
+    description: text('description', { length: 1000 }),
     isInviteOnly: integer('is_invite_only', { mode: 'boolean' }).notNull().default(false),
     banner: text('banner', { length: 300 }),
     lot: integer('lot').notNull(),

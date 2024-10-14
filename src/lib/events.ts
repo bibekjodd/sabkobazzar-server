@@ -4,7 +4,7 @@ import { Notification } from '@/schemas/notifications.schema';
 import { User } from '../schemas/users.schema';
 import { pusher } from './pusher';
 
-export const EVENTS = {
+const EVENTS = {
   JOINED_AUCTION: 'joined-auction',
   LEFT_AUCTION: 'left-auction',
   SENT_MESSAGE: 'sent-message',

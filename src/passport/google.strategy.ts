@@ -28,7 +28,7 @@ export const GoogleStrategy = new Strategy(
         })
         .returning();
       if (!user) return done(null, undefined);
-      return done(null, { ...user, totalUnreadNotifications: 0 });
+      return done(null, user);
     } catch (err) {
       done(err as Error, undefined);
     }

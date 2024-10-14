@@ -3,15 +3,15 @@ import { db } from '@/lib/database';
 import { NotFoundException, UnauthorizedException } from '@/lib/exceptions';
 import { handleAsync } from '@/middlewares/handle-async';
 import { notifications } from '@/schemas/notifications.schema';
-import { ResponseUser, UserProfile, users } from '@/schemas/users.schema';
-import { and, desc, eq, gt, like, or } from 'drizzle-orm';
+import { ResponseUser, User, users } from '@/schemas/users.schema';
+import { and, desc, eq, gt, like, ne, or } from 'drizzle-orm';
 
-export const getProfile = handleAsync<unknown, { user: UserProfile }>(async (req, res) => {
+export const getProfile = handleAsync<unknown, { user: User }>(async (req, res) => {
   if (!req.user) throw new UnauthorizedException();
   return res.json({ user: req.user });
 });
 
-export const updateProfile = handleAsync<unknown, { user: UserProfile }>(async (req, res) => {
+export const updateProfile = handleAsync<unknown, { user: User }>(async (req, res) => {
   if (!req.user) throw new UnauthorizedException();
 
   const data = updateProfileSchema.parse(req.body);
@@ -49,7 +49,12 @@ export const queryUsers = handleAsync<unknown, { users: ResponseUser[] }>(async 
   const result = await db
     .select()
     .from(users)
-    .where(q ? or(like(users.name, `%${q}%`), like(users.email, `%${q}%`)) : undefined)
+    .where(
+      and(
+        q ? or(like(users.name, `%${q}%`), like(users.email, `%${q}%`)) : undefined,
+        req.user?.id ? ne(users.id, req.user.id) : undefined
+      )
+    )
     .limit(limit)
     .offset(offset)
     .orderBy((t) => desc(t.name));

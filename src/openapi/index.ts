@@ -3,11 +3,8 @@ import packageJson from 'package.json' with { type: 'json' };
 import { createDocument } from 'zod-openapi';
 import { auctionsDoc } from './auctions.doc';
 import { authDoc } from './auth.doc';
-import { bidsDoc } from './bids.doc';
 import { eventsDoc } from './events.doc';
-import { interestsDoc } from './interests.doc';
 import { notificationsDoc } from './notifications.doc';
-import { participantsDoc } from './participants.doc';
 import { productsDoc } from './products.doc';
 import { usersDoc } from './users.doc';
 
@@ -36,10 +33,7 @@ export const openApiSpecs = createDocument({
     ...authDoc,
     ...usersDoc,
     ...productsDoc,
-    ...interestsDoc,
     ...auctionsDoc,
-    ...participantsDoc,
-    ...bidsDoc,
     ...notificationsDoc,
     ...eventsDoc
   },

@@ -39,11 +39,10 @@ export const addProduct = handleAsync<unknown, { product: ResponseProduct; messa
 
 export const queryProducts = handleAsync<unknown, { products: ResponseProduct[] }>(
   async (req, res) => {
-    const { cursor, limit, category, pricelte, pricegte, title, owner } = queryProductsSchema.parse(
-      req.query
-    );
+    const { cursor, limit, category, pricelte, pricegte, title, owner, interested } =
+      queryProductsSchema.parse(req.query);
 
-    const result = await db
+    let query = db
       .select({
         ...selectProductSnapshot,
         owner: selectUserSnapshot,
@@ -51,10 +50,6 @@ export const queryProducts = handleAsync<unknown, { products: ResponseProduct[] 
       })
       .from(products)
       .innerJoin(users, eq(products.ownerId, users.id))
-      .leftJoin(
-        interests,
-        and(eq(products.id, interests.productId), eq(interests.userId, req.user?.id || ''))
-      )
       .where(
         and(
           title ? like(products.title, `%${title}%`) : undefined,
@@ -68,6 +63,19 @@ export const queryProducts = handleAsync<unknown, { products: ResponseProduct[] 
       .orderBy((t) => desc(t.addedAt))
       .limit(limit);
 
+    if (interested) {
+      query = query.innerJoin(
+        interests,
+        and(eq(products.id, interests.productId), eq(interests.userId, req.user?.id || ''))
+      );
+    } else {
+      query = query.leftJoin(
+        interests,
+        and(eq(products.id, interests.productId), eq(interests.userId, req.user?.id || ''))
+      );
+    }
+
+    const result = await query;
     const finalResult = result.map((item) => ({ ...item, isInterested: !!item.isInterested }));
     return res.json({ products: finalResult });
   }
@@ -134,4 +142,35 @@ export const updateProduct = handleAsync<
     product: { ...updatedProduct, owner: req.user, isInterested },
     message: 'Product updated successfully'
   });
+});
+
+export const setInterested = handleAsync<{ id: string }>(async (req, res) => {
+  if (!req.user) throw new UnauthorizedException();
+  const productId = req.params.id;
+  const [isSetInterested] = await db
+    .insert(interests)
+    .values({ productId, userId: req.user.id })
+    .onConflictDoUpdate({
+      target: [interests.userId, interests.productId],
+      set: { at: new Date().toISOString() }
+    })
+    .returning();
+
+  if (!isSetInterested) throw new NotFoundException('Product does not exist');
+
+  return res.status(201).json({ message: 'Product set interested successfully' });
+});
+
+export const unsetInterested = handleAsync<{ id: string }>(async (req, res) => {
+  if (!req.user) throw new UnauthorizedException();
+  const productId = req.params.id;
+  const [isSetUnInterested] = await db
+    .delete(interests)
+    .where(and(eq(interests.productId, productId), eq(interests.userId, req.user.id)))
+    .returning();
+
+  if (!isSetUnInterested)
+    throw new NotFoundException('Product does not exist is is already unset interested');
+
+  return res.json({ message: 'Product unset interested successfully' });
 });

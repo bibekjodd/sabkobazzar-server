@@ -80,5 +80,32 @@ export const productsDoc: ZodOpenApiPathsObject = {
         404: { description: 'Product does not exist' }
       }
     }
+  },
+
+  '/api/products/:id/interested': {
+    post: {
+      tags,
+      summary: 'Set product as interested',
+      requestParams: {
+        path: z.object({ id: z.string() })
+      },
+      responses: {
+        201: { description: 'Product set as interested successfully' },
+        401: { description: 'User is not authorized' },
+        404: { description: 'Product does not exist' }
+      }
+    },
+    delete: {
+      tags,
+      summary: 'Unset product from interested',
+      requestParams: {
+        path: z.object({ id: z.string() })
+      },
+      responses: {
+        200: { description: 'Product unset from interested successfully' },
+        401: { description: 'User is not authorized' },
+        404: { description: 'Product does not exist is is already unset interested' }
+      }
+    }
   }
 };

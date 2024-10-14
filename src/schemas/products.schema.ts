@@ -14,7 +14,7 @@ export const products = sqliteTable(
     category: text('category', { enum: ['electronics', 'realestate', 'art', 'others'] })
       .notNull()
       .default('others'),
-    description: text('desccription', { length: 500 }),
+    description: text('desccription', { length: 1000 }),
     ownerId: text('owner_id').notNull(),
     price: integer('price').notNull(),
     addedAt: text('added_at')

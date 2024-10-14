@@ -1,11 +1,18 @@
-import { getUpcomingAuctionsQuerySchema, registerAuctionSchema } from '@/dtos/auctions.dto';
+import {
+  fetchBidsQuerySchema,
+  placeBidSchema,
+  queryAuctionsSchema,
+  registerAuctionSchema,
+  searchInviteUsersSchema
+} from '@/dtos/auctions.dto';
 import { responseAuctionSchema } from '@/schemas/auctions.schema';
+import { responseBidSchema } from '@/schemas/bids.schema';
+import { responesUserSchema } from '@/schemas/users.schema';
 import { z } from 'zod';
 import { ZodOpenApiPathsObject } from 'zod-openapi';
 import 'zod-openapi/extend';
 
 const tags = ['Auction'];
-
 export const auctionsDoc: ZodOpenApiPathsObject = {
   '/api/auctions/{id}': {
     post: {
@@ -45,12 +52,12 @@ export const auctionsDoc: ZodOpenApiPathsObject = {
       }
     }
   },
-  '/api/auctions/upcoming': {
+  '/api/auctions': {
     get: {
       tags,
-      summary: 'Fetch the upcoming auctions list',
+      summary: 'Fetch auctions',
       requestParams: {
-        query: getUpcomingAuctionsQuerySchema
+        query: queryAuctionsSchema
       },
       responses: {
         200: {
@@ -63,20 +70,7 @@ export const auctionsDoc: ZodOpenApiPathsObject = {
       }
     }
   },
-  '/api/auctions/recent': {
-    get: {
-      tags,
-      summary: 'Fetch the recent auctions list',
-      responses: {
-        200: {
-          description: 'Upcoming auctions list fetched successfully',
-          content: {
-            'application/json': { schema: z.object({ auctions: z.array(responseAuctionSchema) }) }
-          }
-        }
-      }
-    }
-  },
+
   '/api/auctions/{id}/cancel': {
     put: {
       tags,
@@ -90,6 +84,169 @@ export const auctionsDoc: ZodOpenApiPathsObject = {
         401: { description: 'User is not authenticated' },
         403: { description: 'User is not admin or product owner to cancel the auction' },
         404: { description: 'Auction does not exist' }
+      }
+    }
+  },
+
+  '/api/auctions/{id}/participants': {
+    get: {
+      tags,
+      summary: 'Fetch participants list of the auction',
+      requestParams: {
+        path: z.object({ id: z.string() })
+      },
+      responses: {
+        200: {
+          description: 'Participants list fetched successfully',
+          content: {
+            'application/json': { schema: z.object({ participants: z.array(responesUserSchema) }) }
+          }
+        }
+      }
+    }
+  },
+  '/api/auctions/{id}/join': {
+    put: {
+      tags,
+      summary: 'Join auction',
+      requestParams: {
+        path: z.object({ id: z.string() }).openapi({ description: 'Auction id' })
+      },
+      responses: {
+        200: { description: 'Joined auction successfully' },
+        400: { description: 'Auction is already cancelled or completed' },
+        401: { description: 'User is not authenticated' },
+        403: { description: "Admins can't join the auction" },
+        404: { description: 'Auction does not exist' }
+      }
+    }
+  },
+  '/api/auctions/{auctionId}/invite/{userId}': {
+    put: {
+      summary: 'Invite user to the auction',
+      tags,
+      requestParams: {
+        path: z.object({ userId: z.string(), auctionId: z.string() })
+      },
+      responses: {
+        200: { description: 'User invited successfully' },
+        400: { description: 'Auction is already cancelled or finished or started' },
+        401: { description: 'User is not authorized' },
+        403: {
+          description:
+            'User is not the host of the auction or more than 50 users are already invited'
+        },
+        404: { description: 'Auction or user does not exist' }
+      }
+    }
+  },
+
+  '/api/auctions/{id}/search-invite': {
+    get: {
+      tags,
+      summary: 'Search users for invitation to auction',
+      requestParams: {
+        path: z.object({ id: z.string() }),
+        query: searchInviteUsersSchema
+      },
+      responses: {
+        200: {
+          description: 'Users list fetched successfully',
+          content: {
+            'application/json': {
+              schema: z.object({
+                users: z.array(responesUserSchema.extend({ isInvited: z.boolean() }))
+              })
+            }
+          }
+        },
+        400: { description: 'Invalid request query' },
+        401: { description: 'User is not authorized' }
+      }
+    }
+  },
+
+  '/api/auctions/{id}/leave': {
+    put: {
+      tags,
+      summary: 'Leave auction',
+      requestParams: {
+        path: z.object({ id: z.string() }).openapi({ description: 'Auction id' })
+      },
+      responses: {
+        200: { description: 'Left auction successfully' },
+        400: { description: 'Auction is already cancelled or completed' },
+        401: { description: 'User is not authenticated' },
+        403: { description: "Aucton can't be left if there is only 6 hours to start" },
+        404: { description: 'Auction does not exist' }
+      }
+    }
+  },
+  '/api/auctions/{auctionId}/kick/{userId}': {
+    put: {
+      tags,
+      summary: 'Kick participant from the auction',
+      requestParams: {
+        path: z.object({
+          userId: z.string(),
+          auctionId: z.string()
+        })
+      },
+      responses: {
+        200: { description: 'Kicked participant successfully' }
+      }
+    }
+  },
+
+  '/api/auctions/{id}/bid': {
+    put: {
+      tags,
+      summary: 'Place a bid',
+      requestParams: {
+        path: z.object({ id: z.string() }).openapi({ description: 'Auction id' })
+      },
+      requestBody: { content: { 'application/json': { schema: placeBidSchema } } },
+      responses: {
+        200: {
+          description: 'Bid placed successfully',
+          content: { 'application/json': { schema: z.object({ bid: responseBidSchema }) } }
+        },
+        400: { description: 'Invalid amount sent for bid or auction has not started' },
+        401: { description: 'User is not authenticated' },
+        403: { description: "Admins can't place the bid" }
+      }
+    }
+  },
+
+  '/api/auctions/{id}/bids': {
+    get: {
+      tags,
+      summary: 'Fetch bids of an auction',
+      requestParams: {
+        path: z.object({ id: z.string() }).openapi({ description: 'Auction id' }),
+        query: fetchBidsQuerySchema
+      },
+      responses: {
+        200: {
+          description: 'Bids list fetched successfully',
+          content: {
+            'application/json': { schema: z.object({ bids: z.array(responseBidSchema) }) }
+          }
+        },
+        400: { description: 'Invalid request query' }
+      }
+    }
+  },
+
+  '/api/auctions/{id}/bids-snapshot': {
+    get: {
+      tags,
+      summary: 'Get current bids snapshot',
+      requestParams: {
+        path: z.object({ id: z.string() }).openapi({ description: 'Auction id' })
+      },
+      responses: {
+        200: { description: 'Bids snapshot fetched successfully' }
       }
     }
   }

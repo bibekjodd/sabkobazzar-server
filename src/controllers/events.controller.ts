@@ -2,7 +2,7 @@ import { sendMessageSchema } from '@/dtos/events.dto';
 import { onJoinedAuction, onLeftAuction, onSendMessage } from '@/lib/events';
 import { UnauthorizedException } from '@/lib/exceptions';
 import { handleAsync } from '@/middlewares/handle-async';
-import { validateParticipant } from '@/services/participants.services';
+import { validateParticipant } from '@/services/auctions.services';
 
 export const joinedAuction = handleAsync<{ id: string }, { message: string }>(async (req, res) => {
   if (!req.user) throw new UnauthorizedException();

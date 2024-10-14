@@ -26,5 +26,5 @@ export const updateProfileSchema = z
 export const queryUsersSchema = z.object({
   q: z.string().optional(),
   limit: z.preprocess((val) => Number(val) || undefined, z.number().min(1).max(20).default(20)),
-  page: z.preprocess((val) => Number(val) || 1, z.number().min(1).default(1))
+  page: z.preprocess((val) => Number(val) || undefined, z.number().min(1).default(1))
 });

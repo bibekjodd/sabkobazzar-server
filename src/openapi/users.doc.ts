@@ -1,5 +1,5 @@
 import { queryUsersSchema, updateProfileSchema } from '@/dtos/users.dto';
-import { selectUserSchema, userProfileSchema } from '@/schemas/users.schema';
+import { selectUserSchema } from '@/schemas/users.schema';
 import { z } from 'zod';
 import { ZodOpenApiPathsObject } from 'zod-openapi';
 import 'zod-openapi/extend';
@@ -13,7 +13,7 @@ export const usersDoc: ZodOpenApiPathsObject = {
       responses: {
         200: {
           description: 'User profile fetched successfully',
-          content: { 'application/json': { schema: z.object({ user: userProfileSchema }) } }
+          content: { 'application/json': { schema: z.object({ user: selectUserSchema }) } }
         },
         401: {
           description: 'User is not authenticated'
@@ -35,7 +35,7 @@ export const usersDoc: ZodOpenApiPathsObject = {
       responses: {
         200: {
           description: 'Profile updated successfully',
-          content: { 'application/json': { schema: z.object({ user: userProfileSchema }) } }
+          content: { 'application/json': { schema: z.object({ user: selectUserSchema }) } }
         },
         400: { description: 'Invalid request body payload' },
         401: { description: 'User is not authenticated' }

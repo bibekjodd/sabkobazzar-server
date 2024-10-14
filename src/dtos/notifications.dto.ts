@@ -5,5 +5,5 @@ export const getNotificationsQuerySchema = z.object({
     .string()
     .datetime()
     .default(() => new Date().toISOString()),
-  limit: z.preprocess((val) => Number(val) || undefined, z.number().min(1).max(20).default(20))
+  limit: z.preprocess((val) => Number(val) || undefined, z.number().min(1).max(100).default(20))
 });

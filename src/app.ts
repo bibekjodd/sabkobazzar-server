@@ -5,7 +5,6 @@ import express from 'express';
 import morgan from 'morgan';
 import passport from 'passport';
 import { env, validateEnv } from './config/env.config';
-import { db } from './lib/database';
 import { NotFoundException } from './lib/exceptions';
 import { devConsole, sessionOptions } from './lib/utils';
 import { handleAsync } from './middlewares/handle-async';
@@ -16,14 +15,10 @@ import { GoogleStrategy } from './passport/google.strategy';
 import { serializer } from './passport/serializer';
 import { auctionsRoute } from './routes/auctions.route';
 import { authRoute } from './routes/auth.route';
-import { bidsRoute } from './routes/bids.route';
 import { eventsRoute } from './routes/events.route';
-import { interestsRoute } from './routes/interests.route';
 import { notificationsRoute } from './routes/notifications.route';
-import { participantsRoute } from './routes/participants.route';
 import { productsRoute } from './routes/products.route';
 import { usersRoute } from './routes/users.route';
-import { invites } from './schemas/invites.schema';
 
 const app = express();
 validateEnv();
@@ -56,10 +51,7 @@ app.get(
 app.use('/api/auth', authRoute);
 app.use('/api/users', usersRoute);
 app.use('/api/products', productsRoute);
-app.use('/api/interests', interestsRoute);
 app.use('/api/auctions', auctionsRoute);
-app.use('/api/participants', participantsRoute);
-app.use('/api/bids', bidsRoute);
 app.use('/api/notifications', notificationsRoute);
 app.use('/api/events', eventsRoute);
 app.get('/doc', (req, res) => {
