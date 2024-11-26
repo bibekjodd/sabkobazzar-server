@@ -25,8 +25,9 @@ export const auctions = sqliteTable(
     finalBid: integer('final_bid'),
     minBidders: integer('min_bidders').notNull().default(2),
     maxBidders: integer('max_bidders').notNull().default(10),
-    isFinished: integer('is_finished', { mode: 'boolean' }).notNull().default(false),
-    isCancelled: integer('is_cancelled', { mode: 'boolean' }).notNull().default(false)
+    isCompleted: integer('is_completed', { mode: 'boolean' }).notNull().default(false),
+    isCancelled: integer('is_cancelled', { mode: 'boolean' }).notNull().default(false),
+    isUnbidded: integer('is_unbidded', { mode: 'boolean' }).notNull().default(false)
   },
   function constraints(auctions) {
     return {
@@ -49,7 +50,9 @@ export const auctions = sqliteTable(
 
       indexProduct: index('idx_product_id_auctions').on(auctions.productId),
       indexOwner: index('idx_owner_id_auctions').on(auctions.ownerId),
-      indexWinner: index('idx_winner_id_auctions').on(auctions.winnerId)
+      indexWinner: index('idx_winner_id_auctions').on(auctions.winnerId),
+      indexStartsAt: index('idx_starts_at_auctions').on(auctions.startsAt),
+      indexEndsAt: index('idx_ends_at_auctions').on(auctions.endsAt)
     };
   }
 );

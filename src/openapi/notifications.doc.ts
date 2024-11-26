@@ -1,5 +1,5 @@
+import { responseNotificationSchema } from '@/db/notifications.schema';
 import { getNotificationsQuerySchema } from '@/dtos/notifications.dto';
-import { responseNotificationSchema } from '@/schemas/notifications.schema';
 import { z } from 'zod';
 import { ZodOpenApiPathsObject } from 'zod-openapi';
 
@@ -15,7 +15,10 @@ export const notificationsDoc: ZodOpenApiPathsObject = {
           description: 'Notifications fetched successfully',
           content: {
             'application/json': {
-              schema: z.object({ notifications: z.array(responseNotificationSchema) })
+              schema: z.object({
+                cursor: z.string().optional(),
+                notifications: z.array(responseNotificationSchema)
+              })
             }
           }
         },

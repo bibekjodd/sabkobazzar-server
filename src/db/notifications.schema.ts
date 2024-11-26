@@ -29,7 +29,8 @@ export const notifications = sqliteTable(
       })
         .onDelete('cascade')
         .onUpdate('cascade'),
-      userIndex: index('idx_user_id_notifications').on(notifications.userId)
+      indexUser: index('idx_user_id_notifications').on(notifications.userId),
+      indexReceivedAt: index('idx_received_at').on(notifications.receivedAt)
     };
   }
 );

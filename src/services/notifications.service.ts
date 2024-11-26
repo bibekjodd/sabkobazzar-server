@@ -1,7 +1,7 @@
-import { db } from '@/lib/database';
+import { db } from '@/db';
+import { InsertNotification, notifications } from '@/db/notifications.schema';
+import { users } from '@/db/users.schema';
 import { onReceivedNotification } from '@/lib/events';
-import { InsertNotification, notifications } from '@/schemas/notifications.schema';
-import { users } from '@/schemas/users.schema';
 import { eq, sql } from 'drizzle-orm';
 
 export const addNotification = async (...data: InsertNotification[]) => {

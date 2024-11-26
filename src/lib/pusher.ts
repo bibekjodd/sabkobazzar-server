@@ -2,9 +2,9 @@ import { env } from '@/config/env.config';
 import Pusher from 'pusher';
 
 export const pusher = new Pusher({
-  appId: '1870591',
+  appId: env.PUSHER_APP_ID,
   key: env.PUSHER_KEY,
   secret: env.PUSHER_SECRET,
-  cluster: 'ap2',
+  cluster: env.PUSHER_CLUSTER,
   useTLS: true
 });

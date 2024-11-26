@@ -1,6 +1,13 @@
 import { createId } from '@paralleldrive/cuid2';
 import { getTableColumns } from 'drizzle-orm';
-import { integer, primaryKey, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core';
+import {
+  index,
+  integer,
+  primaryKey,
+  sqliteTable,
+  text,
+  uniqueIndex
+} from 'drizzle-orm/sqlite-core';
 import { createSelectSchema } from 'drizzle-zod';
 
 export const users = sqliteTable(
@@ -25,7 +32,8 @@ export const users = sqliteTable(
   function constraints(users) {
     return {
       primaryKey: primaryKey({ name: 'users_pkey', columns: [users.id] }),
-      uniqueEmail: unique('uk_email').on(users.email)
+      indexUniqueEmail: uniqueIndex('idx_email_users').on(users.email),
+      indexLastOnline: index('idx_last_online_users').on(users.lastOnline)
     };
   }
 );

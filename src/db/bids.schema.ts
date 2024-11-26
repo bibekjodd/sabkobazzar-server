@@ -34,7 +34,8 @@ export const bids = sqliteTable(
       })
         .onDelete('cascade')
         .onUpdate('cascade'),
-      indexAuction: index('idx_auction_id_bids').on(bids.auctionId)
+      indexAuction: index('idx_auction_id_bids').on(bids.auctionId),
+      indexBidAt: index('idx_at_bids').on(bids.at)
     };
   }
 );

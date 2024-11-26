@@ -1,6 +1,6 @@
+import { InsertNotification } from '@/db/notifications.schema';
 import { sendMail, SendMailOptions } from '@/lib/send-mail';
 import { formatDate } from '@/lib/utils';
-import { InsertNotification } from '@/schemas/notifications.schema';
 import { addNotification } from '@/services/notifications.service';
 
 export const registerAuctionNotification = async ({
@@ -22,17 +22,15 @@ export const registerAuctionNotification = async ({
   const description = `Auction - ${auction.title} is scheduled for ${formatDate(auction.startsAt)}`;
   const message = `Hey ${user.name}, ${description}`;
 
-  await Promise.all([
-    sendMail({ mail: user.email, subject: title, text: message }),
-    addNotification({
-      title,
-      description,
-      entity: 'auctions',
-      params: auction.id,
-      userId: user.id,
-      type: 'register'
-    })
-  ]);
+  sendMail({ mail: user.email, subject: title, text: message });
+  await addNotification({
+    title,
+    description,
+    entity: 'auctions',
+    params: auction.id,
+    userId: user.id,
+    type: 'register'
+  });
 };
 
 export const cancelAuctionNotifications = async ({
@@ -59,8 +57,8 @@ export const cancelAuctionNotifications = async ({
     });
     mailData.push({ mail: user.email, subject: title, text: message });
   }
-
-  await Promise.all([sendMail(...mailData), addNotification(...notificationsData)]);
+  sendMail(...mailData);
+  await addNotification(...notificationsData);
 };
 
 export const auctionParticipantNotification = async ({
@@ -94,15 +92,13 @@ export const auctionParticipantNotification = async ({
     message = `Hey ${user.name}, ${description}`;
   }
 
-  await Promise.all([
-    type !== 'leave' && sendMail({ mail: user.email, subject: title, text: message }),
-    addNotification({
-      entity: 'auctions',
-      params: auction.id,
-      title,
-      userId: user.id,
-      description,
-      type
-    })
-  ]);
+  if (type !== 'leave') sendMail({ mail: user.email, subject: title, text: message });
+  await addNotification({
+    entity: 'auctions',
+    params: auction.id,
+    title,
+    userId: user.id,
+    description,
+    type
+  });
 };

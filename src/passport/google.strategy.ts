@@ -1,6 +1,6 @@
 import { env } from '@/config/env.config';
-import { db } from '@/lib/database';
-import { users } from '@/schemas/users.schema';
+import { db } from '@/db';
+import { users } from '@/db/users.schema';
 import { Strategy } from 'passport-google-oauth20';
 
 export const GoogleStrategy = new Strategy(
@@ -24,7 +24,7 @@ export const GoogleStrategy = new Strategy(
         })
         .onConflictDoUpdate({
           target: [users.email],
-          set: { image: image, lastOnline: new Date().toISOString() }
+          set: { lastOnline: new Date().toISOString() }
         })
         .returning();
       if (!user) return done(null, undefined);

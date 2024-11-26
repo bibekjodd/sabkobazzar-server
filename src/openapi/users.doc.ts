@@ -1,5 +1,5 @@
+import { selectUserSchema } from '@/db/users.schema';
 import { queryUsersSchema, updateProfileSchema } from '@/dtos/users.dto';
-import { selectUserSchema } from '@/schemas/users.schema';
 import { z } from 'zod';
 import { ZodOpenApiPathsObject } from 'zod-openapi';
 import 'zod-openapi/extend';

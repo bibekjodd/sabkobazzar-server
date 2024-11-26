@@ -1,5 +1,5 @@
+import { responseProductSchema } from '@/db/products.schema';
 import { addProductSchema, queryProductsSchema, updateProductSchema } from '@/dtos/products.dto';
-import { responseProductSchema } from '@/schemas/products.schema';
 import { z } from 'zod';
 import { ZodOpenApiPathsObject } from 'zod-openapi';
 import 'zod-openapi/extend';
@@ -18,7 +18,12 @@ export const productsDoc: ZodOpenApiPathsObject = {
         200: {
           description: 'Fetched products successfully',
           content: {
-            'application/json': { schema: z.object({ products: z.array(responseProductSchema) }) }
+            'application/json': {
+              schema: z.object({
+                cursor: z.string().optional(),
+                products: z.array(responseProductSchema)
+              })
+            }
           }
         },
         400: {

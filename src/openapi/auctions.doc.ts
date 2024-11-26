@@ -1,13 +1,13 @@
+import { responseAuctionSchema } from '@/db/auctions.schema';
+import { responseBidSchema } from '@/db/bids.schema';
+import { responesUserSchema } from '@/db/users.schema';
 import {
-  fetchBidsQuerySchema,
+  getBidsQuerySchema,
   placeBidSchema,
   queryAuctionsSchema,
   registerAuctionSchema,
   searchInviteUsersSchema
 } from '@/dtos/auctions.dto';
-import { responseAuctionSchema } from '@/schemas/auctions.schema';
-import { responseBidSchema } from '@/schemas/bids.schema';
-import { responesUserSchema } from '@/schemas/users.schema';
 import { z } from 'zod';
 import { ZodOpenApiPathsObject } from 'zod-openapi';
 import 'zod-openapi/extend';
@@ -63,7 +63,12 @@ export const auctionsDoc: ZodOpenApiPathsObject = {
         200: {
           description: 'Upcoming auctions list fetched successfully',
           content: {
-            'application/json': { schema: z.object({ auctions: z.array(responseAuctionSchema) }) }
+            'application/json': {
+              schema: z.object({
+                cursor: z.string().optional(),
+                auctions: z.array(responseAuctionSchema)
+              })
+            }
           }
         },
         400: { description: 'Invalid request query' }
@@ -80,7 +85,7 @@ export const auctionsDoc: ZodOpenApiPathsObject = {
       },
       responses: {
         200: { description: 'Auction cancelled successfully' },
-        400: { description: 'Auction is already cancelled or finished' },
+        400: { description: 'Auction is already cancelled or completed' },
         401: { description: 'User is not authenticated' },
         403: { description: 'User is not admin or product owner to cancel the auction' },
         404: { description: 'Auction does not exist' }
@@ -130,7 +135,7 @@ export const auctionsDoc: ZodOpenApiPathsObject = {
       },
       responses: {
         200: { description: 'User invited successfully' },
-        400: { description: 'Auction is already cancelled or finished or started' },
+        400: { description: 'Auction is already cancelled or completed or started' },
         401: { description: 'User is not authorized' },
         403: {
           description:
@@ -208,19 +213,21 @@ export const auctionsDoc: ZodOpenApiPathsObject = {
       summary: 'Fetch bids of an auction',
       requestParams: {
         path: z.object({ id: z.string() }).openapi({ description: 'Auction id' }),
-        query: fetchBidsQuerySchema
+        query: getBidsQuerySchema
       },
       responses: {
         200: {
           description: 'Bids list fetched successfully',
           content: {
-            'application/json': { schema: z.object({ bids: z.array(responseBidSchema) }) }
+            'application/json': {
+              schema: z.object({ cursor: z.string().optional(), bids: z.array(responseBidSchema) })
+            }
           }
         },
         400: { description: 'Invalid request query' }
       }
     },
-    put: {
+    post: {
       tags,
       summary: 'Place a bid',
       requestParams: {

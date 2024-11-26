@@ -11,10 +11,10 @@ export const products = sqliteTable(
     id: text('id').notNull().$defaultFn(createId),
     title: text('title', { length: 200 }).notNull(),
     image: text('image', { length: 200 }),
-    category: text('category', { enum: ['electronics', 'realestate', 'art', 'others'] })
+    category: text('category', { enum: ['electronics', 'realestate', 'arts', 'others'] })
       .notNull()
       .default('others'),
-    description: text('desccription', { length: 1000 }),
+    description: text('description', { length: 1000 }),
     ownerId: text('owner_id').notNull(),
     price: integer('price').notNull(),
     addedAt: text('added_at')
@@ -29,7 +29,8 @@ export const products = sqliteTable(
         columns: [products.ownerId],
         foreignColumns: [users.id]
       }),
-      usersIndex: index('products_idx_owner_id').on(products.ownerId)
+      indexOwner: index('idx_owner_id_products').on(products.ownerId),
+      indexAddedAt: index('idx_added_at_products').on(products.addedAt)
     };
   }
 );

@@ -1,7 +1,7 @@
+import { Bid } from '@/db/bids.schema';
+import { Notification } from '@/db/notifications.schema';
 import { SendMessageSchema } from '@/dtos/events.dto';
-import { Bid } from '@/schemas/bids.schema';
-import { Notification } from '@/schemas/notifications.schema';
-import { User } from '../schemas/users.schema';
+import { User } from '../db/users.schema';
 import { pusher } from './pusher';
 
 const EVENTS = {

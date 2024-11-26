@@ -33,6 +33,7 @@ app.use(cookieSession(sessionOptions));
 app.use(handleSessionRegenerate);
 app.use(passport.initialize());
 app.use(passport.session());
+
 passport.use('google', GoogleStrategy);
 serializer();
 
@@ -55,7 +56,7 @@ app.use('/api/auctions', auctionsRoute);
 app.use('/api/notifications', notificationsRoute);
 app.use('/api/events', eventsRoute);
 app.get('/doc', (req, res) => {
-  return res.json(openApiSpecs);
+  res.json(openApiSpecs);
 });
 app.use('/reference', serveApiReference);
 app.use(() => {

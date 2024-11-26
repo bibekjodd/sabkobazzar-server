@@ -1,16 +1,12 @@
-import { db } from '@/lib/database';
+import { db } from '@/db';
+import { Auction, auctions, ResponseAuction, selectAuctionsSnapshot } from '@/db/auctions.schema';
+import { bids } from '@/db/bids.schema';
+import { interests } from '@/db/interests.schema';
+import { participants } from '@/db/participants.schema';
+import { products, selectProductSnapshot } from '@/db/products.schema';
+import { selectUserSnapshot, User, users } from '@/db/users.schema';
 import { BadRequestException, ForbiddenException, NotFoundException } from '@/lib/exceptions';
-import {
-  Auction,
-  auctions,
-  ResponseAuction,
-  selectAuctionsSnapshot
-} from '@/schemas/auctions.schema';
-import { interests } from '@/schemas/interests.schema';
-import { participants } from '@/schemas/participants.schema';
-import { products, selectProductSnapshot } from '@/schemas/products.schema';
-import { selectUserSnapshot, User, users } from '@/schemas/users.schema';
-import { and, eq, getTableColumns, sql } from 'drizzle-orm';
+import { and, count, desc, eq, getTableColumns, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/sqlite-core';
 
 export const auctionDetails = async ({
@@ -29,13 +25,16 @@ export const auctionDetails = async ({
       owner: selectUserSnapshot,
       winner: getTableColumns(winner),
       participationStatus: participant.status,
-      totalParticipants: sql<number>`sum(case when ${participants.status}='joined' then 1 else 0 end)`
+      totalParticipants: count(participants.userId)
     })
     .from(auctions)
     .innerJoin(products, eq(auctions.productId, products.id))
     .leftJoin(interests, and(eq(products.id, interests.productId), eq(interests.userId, userId)))
     .innerJoin(users, eq(auctions.ownerId, users.id))
-    .leftJoin(participants, eq(participants.auctionId, auctionId))
+    .leftJoin(
+      participants,
+      and(eq(participants.auctionId, auctionId), eq(participants.status, 'joined'))
+    )
     .leftJoin(
       participant,
       and(eq(auctions.id, participant.auctionId), eq(participant.userId, userId))
@@ -45,6 +44,35 @@ export const auctionDetails = async ({
     .where(eq(auctions.id, auctionId));
   if (!auction) throw new NotFoundException('Auction does not exist');
   auction.product.isInterested = !!auction.product.isInterested;
+  const isCompleted = !auction.isCancelled && new Date().toISOString() > auction.endsAt;
+
+  if (isCompleted && !auction.winner && !auction.isUnbidded) {
+    const [winner] = await db
+      .select({ ...selectUserSnapshot, amount: bids.amount })
+      .from(bids)
+      .where(and(eq(bids.auctionId, auctionId)))
+      .innerJoin(users, eq(bids.bidderId, users.id))
+      .orderBy((t) => desc(t.amount))
+      .limit(1);
+
+    if (winner) {
+      auction.winner = winner;
+      auction.winnerId = winner.id;
+      auction.finalBid = winner.amount;
+      db.update(auctions)
+        .set({ winnerId: winner.id, finalBid: winner.amount, isCompleted: true })
+        .where(eq(auctions.id, auctionId))
+        .execute();
+    } else {
+      auction.isUnbidded = true;
+      auction.isCompleted = true;
+      db.update(auctions)
+        .set({ isUnbidded: true, isCompleted: true })
+        .where(eq(auctions.id, auctionId))
+        .execute();
+    }
+  }
+
   return auction;
 };
 
@@ -121,7 +149,7 @@ export const inviteParticipantToAuction = async ({
   if (!auction.isInviteOnly) throw new BadRequestException('The auction is public to all users');
   if (totalInvites >= 50) throw new ForbiddenException("Can't invite more than 50 users");
   if (auction.isCancelled) throw new BadRequestException('Auction is already cancelled');
-  if (auction.isFinished) throw new BadRequestException('Auction is already finished');
+  if (auction.isCompleted) throw new BadRequestException('Auction is already completed');
   if (auction.startsAt < new Date().toISOString())
     throw new BadRequestException("Can't invite users after the auction has started");
   if (auction.participationStatus === 'invited')
@@ -131,17 +159,20 @@ export const inviteParticipantToAuction = async ({
   if (auction.participationStatus === 'joined')
     throw new BadRequestException('User has already joined the auction');
 
-  await db
-    .insert(participants)
-    .values({
+  if (auction.participationStatus === null) {
+    await db.insert(participants).values({
       auctionId,
       userId,
       at: new Date().toISOString(),
       status: 'invited'
-    })
-    .onConflictDoNothing({
-      target: [participants.auctionId, participants.userId]
     });
+  }
+  if (auction.participationStatus == 'kicked') {
+    await db
+      .update(participants)
+      .set({ status: 'invited', at: new Date().toISOString() })
+      .where(and(eq(participants.auctionId, auctionId), eq(participants.userId, userId)));
+  }
 
   return { auction, participant };
 };

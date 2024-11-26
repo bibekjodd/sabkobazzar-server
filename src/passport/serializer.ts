@@ -1,5 +1,5 @@
-import { db } from '@/lib/database';
-import { users } from '@/schemas/users.schema';
+import { db } from '@/db';
+import { users } from '@/db/users.schema';
 import { eq } from 'drizzle-orm';
 import passport from 'passport';
 

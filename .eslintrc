@@ -12,10 +12,6 @@
   },
   "plugins": ["@typescript-eslint", "drizzle"],
   "rules": {
-    "no-var": "off",
-    "@typescript-eslint/no-unused-vars": "warn",
-    "prefer-const": "warn",
-    "@typescript-eslint/no-empty-object-type": "off",
     "drizzle/enforce-delete-with-where": ["error", { "drizzleObjectName": "db" }],
     "drizzle/enforce-update-with-where": ["error", { "drizzleObjectName": "db" }]
   }

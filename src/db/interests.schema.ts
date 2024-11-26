@@ -33,7 +33,8 @@ export const interests = sqliteTable(
         .onUpdate('cascade'),
 
       indexProduct: index('idx_product_id_interests').on(interests.productId),
-      indexUser: index('idx_user_id_intersts').on(interests.userId)
+      indexUser: index('idx_user_id_intersts').on(interests.userId),
+      indexCreatedAt: index('idx_at_interests').on(interests.at)
     };
   }
 );

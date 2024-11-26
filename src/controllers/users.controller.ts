@@ -1,9 +1,9 @@
+import { db } from '@/db';
+import { notifications } from '@/db/notifications.schema';
+import { ResponseUser, User, users } from '@/db/users.schema';
 import { queryUsersSchema, updateProfileSchema } from '@/dtos/users.dto';
-import { db } from '@/lib/database';
 import { NotFoundException, UnauthorizedException } from '@/lib/exceptions';
 import { handleAsync } from '@/middlewares/handle-async';
-import { notifications } from '@/schemas/notifications.schema';
-import { ResponseUser, User, users } from '@/schemas/users.schema';
 import { and, desc, eq, gt, like, ne, or } from 'drizzle-orm';
 
 export const getProfile = handleAsync<unknown, { user: User }>(async (req, res) => {

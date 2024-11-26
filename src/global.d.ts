@@ -1,13 +1,11 @@
+/* eslint-disable @typescript-eslint/no-empty-object-type */
 import { EnvType } from '@/config/env.config';
-import Pusher from 'pusher';
-import { User as UserProfile } from './schemas/users.schema';
+import { User as UserProfile } from './db/users.schema';
 
 export {};
 declare global {
   namespace NodeJS {
-    interface ProcessEnv extends EnvType {
-      //
-    }
+    interface ProcessEnv extends EnvType {}
   }
   namespace Express {
     interface User extends UserProfile {}
@@ -15,6 +13,4 @@ declare global {
       user: UserProfile;
     }
   }
-
-  var __PUSHER__: Pusher | undefined;
 }

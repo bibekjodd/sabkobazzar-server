@@ -1,5 +1,6 @@
 import { getTableColumns } from 'drizzle-orm';
 import { foreignKey, index, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { z } from 'zod';
 import { auctions } from './auctions.schema';
 import { users } from './users.schema';
 
@@ -43,6 +44,9 @@ export const participants = sqliteTable(
 );
 
 export type Participant = typeof participants.$inferSelect;
-export type ParticipationStatus = 'joined' | 'invited' | 'kicked' | 'rejected' | null;
 export type InsertParticipant = typeof participants.$inferInsert;
 export const selectParticipantSnapshot = getTableColumns(participants);
+export const participationStatusSchema = z
+  .enum(['joined', 'invited', 'kicked', 'rejected'])
+  .nullable();
+export type ParticipationStatus = z.infer<typeof participationStatusSchema>;

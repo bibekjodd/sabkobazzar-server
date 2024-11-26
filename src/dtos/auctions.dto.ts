@@ -1,3 +1,5 @@
+import { MILLIS } from '@/lib/constants';
+import { decodeCursor, formatPrice } from '@/lib/utils';
 import { z } from 'zod';
 import { imageSchema } from './users.dto';
 
@@ -13,7 +15,7 @@ export const registerAuctionSchema = z.object({
     .datetime()
     .refine((startsAt) => {
       const date = new Date(startsAt);
-      if (date.getTime() < Date.now() + 24 * 60 * 60 * 1000) {
+      if (date.getTime() < Date.now() + MILLIS.DAY) {
         return false;
       }
 
@@ -29,7 +31,9 @@ export const registerAuctionSchema = z.object({
       date.setMilliseconds(0);
       return date.toISOString();
     }),
-  minBid: z.number().min(10_000, 'Minimum bid for the auction must be at least Rs. 10,000'),
+  minBid: z
+    .number()
+    .min(10_000, `Minimum bid for the auction must be at least ${formatPrice(10000, true)}`),
   minBidders: z
     .number()
     .min(2, 'Bidders must be at least 2')
@@ -42,16 +46,68 @@ export const registerAuctionSchema = z.object({
     .default(10)
 });
 
-export const queryAuctionsSchema = z.object({
-  cursor: z
-    .string()
-    .datetime()
-    .default(() => new Date().toISOString()),
-  limit: z.preprocess((val) => Number(val) || undefined, z.number().min(1).max(100)).default(20),
-  owner: z.string().optional(),
-  product: z.string().optional(),
-  order: z.enum(['asc', 'desc']).default('asc')
-});
+export const queryAuctionsSchema = z
+  .object({
+    cursor: z.preprocess(
+      (val) => (val ? decodeCursor(val as string) : undefined),
+      z
+        .object(
+          {
+            id: z.string(),
+            value: z.preprocess((val) => String(val || ''), z.string())
+          },
+          { message: 'Invalid cursor' }
+        )
+        .optional()
+    ),
+    title: z.string().optional(),
+    limit: z.preprocess((val) => Number(val) || undefined, z.number().min(1).max(100)).default(20),
+    owner: z.string().optional(),
+    product: z.string().optional(),
+    sort: z
+      .enum(['title_asc', 'title_desc', 'starts_at_asc', 'starts_at_desc', 'bid_asc', 'bid_desc'])
+      .default('starts_at_desc'),
+    condition: z.preprocess(
+      (val) => (val === 'all' ? undefined : val),
+      z.enum(['new', 'first-class', 'repairable']).optional()
+    ),
+    status: z.preprocess(
+      (val) => (val === 'all' ? undefined : val),
+      z.enum(['pending', 'live', 'completed', 'cancelled']).optional()
+    ),
+    from: z
+      .union([
+        z
+          .string()
+          .date()
+          .transform((val) => new Date(val).toISOString()),
+        z.string().datetime()
+      ])
+      .optional(),
+    to: z
+      .union([
+        z
+          .string()
+          .date()
+          .transform((val) => {
+            const to = new Date(val);
+            to.setDate(to.getDate() + 1);
+            return to.toISOString();
+          }),
+        z.string().datetime()
+      ])
+      .optional(),
+    inviteOnly: z.preprocess((val) => (val ? val === 'true' : undefined), z.boolean().optional()),
+    unbidded: z.preprocess(
+      (val) => (val === 'true' ? true : val === 'false' ? false : undefined),
+      z.boolean().optional()
+    )
+  })
+  .refine(({ cursor, sort }) => {
+    if (!cursor?.value) return true;
+    if ((sort === 'bid_asc' || sort === 'bid_desc') && isNaN(Number(cursor.value))) return false;
+    return true;
+  }, 'Invalid cursor');
 
 export const placeBidSchema = z.object({
   amount: z
@@ -60,10 +116,21 @@ export const placeBidSchema = z.object({
     .transform((val) => Math.round(val))
 });
 
-export const fetchBidsQuerySchema = z.object({
-  cursor: z.string().datetime().optional(),
+export const getBidsQuerySchema = z.object({
+  cursor: z.preprocess(
+    (val) => (val ? decodeCursor(val as string) : undefined),
+    z
+      .object(
+        {
+          value: z.string().datetime({ message: 'Invalid cursor' }),
+          id: z.string()
+        },
+        { message: 'Invalid cursor' }
+      )
+      .optional()
+  ),
   limit: z.preprocess((val) => Number(val) || undefined, z.number().min(1).max(100).default(20)),
-  order: z.enum(['asc', 'desc']).default('desc')
+  sort: z.enum(['asc', 'desc']).default('desc')
 });
 
 export const searchInviteUsersSchema = z.object({
