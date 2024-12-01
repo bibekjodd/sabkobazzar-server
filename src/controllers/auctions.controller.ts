@@ -39,6 +39,7 @@ import {
   count,
   desc,
   eq,
+  getTableColumns,
   gt,
   gte,
   like,
@@ -230,11 +231,13 @@ export const queryAuctions = handleAsync<
     );
 
   const participant = alias(participants, 'participant');
+  const winner = alias(users, 'winner');
   const result = await db
     .select({
       ...selectAuctionsSnapshot,
       owner: selectUserSnapshot,
       product: { ...selectProductSnapshot, isInterested: sql<boolean>`${interests.productId}` },
+      winner: getTableColumns(winner),
       participationStatus: participant.status,
       totalParticipants: count(participants.userId)
     })
@@ -269,6 +272,7 @@ export const queryAuctions = handleAsync<
       participant,
       and(eq(auctions.id, participant.auctionId), eq(participant.userId, req.user?.id || ''))
     )
+    .leftJoin(winner, eq(auctions.winnerId, winner.id))
     .groupBy(auctions.id)
     .limit(limit)
     .orderBy((t) => {
@@ -282,7 +286,6 @@ export const queryAuctions = handleAsync<
 
   const finalResult: ResponseAuction[] = result.map((item) => ({
     ...item,
-    winner: null,
     product: { ...item.product, isInterested: !!item.product.isInterested }
   }));
 

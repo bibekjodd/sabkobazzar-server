@@ -8,20 +8,20 @@ export const authRoute = router;
 router.get(
   '/login/google',
   (req, res, next) => {
-    const redirectTo = req.query.redirect;
+    const redirectUrl = req.query.redirect as string;
     // @ts-expect-error ...
-    req.session.redirectTo = redirectTo;
+    req.session.redirectTo = redirectUrl;
     next();
   },
   passport.authenticate('google', { scope: ['email', 'profile'] })
 );
-
 router.get('/callback/google', passport.authenticate('google'), (req, res) => {
   // @ts-expect-error ...
-  const redirectTo = req.session.redirectTo;
+  const redirectUrl = req.session.redirectTo;
+
   // @ts-expect-error ...
   delete req.session.redirectTo;
-  return res.redirect(redirectTo || '/');
+  return res.redirect(redirectUrl || '/');
 });
 
 router.route('/logout').get(logout).post(logout);

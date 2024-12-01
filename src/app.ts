@@ -18,6 +18,7 @@ import { authRoute } from './routes/auth.route';
 import { eventsRoute } from './routes/events.route';
 import { notificationsRoute } from './routes/notifications.route';
 import { productsRoute } from './routes/products.route';
+import { statsRoute } from './routes/stats.route';
 import { usersRoute } from './routes/users.route';
 
 const app = express();
@@ -55,6 +56,7 @@ app.use('/api/products', productsRoute);
 app.use('/api/auctions', auctionsRoute);
 app.use('/api/notifications', notificationsRoute);
 app.use('/api/events', eventsRoute);
+app.use('/api/stats', statsRoute);
 app.get('/doc', (req, res) => {
   res.json(openApiSpecs);
 });
@@ -64,9 +66,7 @@ app.use(() => {
 });
 app.use(handleErrorRequest);
 
-if (env.NODE_ENV !== 'test') {
-  app.listen(env.PORT, () => {
-    devConsole(`⚡[Server]: listening at http://localhost:${env.PORT}`.yellow);
-  });
-}
+app.listen(env.PORT, () => {
+  devConsole(`⚡[Server]: listening at http://localhost:${env.PORT}`.yellow);
+});
 export default app;
