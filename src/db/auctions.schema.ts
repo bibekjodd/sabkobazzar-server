@@ -3,8 +3,7 @@ import { getTableColumns } from 'drizzle-orm';
 import { foreignKey, index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { createSelectSchema } from 'drizzle-zod';
 import { z } from 'zod';
-import { products, selectProductSchema } from './products.schema';
-import { responesUserSchema, users } from './users.schema';
+import { responseUserSchema, users } from './users.schema';
 
 export const auctions = sqliteTable(
   'auctions',
@@ -12,15 +11,20 @@ export const auctions = sqliteTable(
     id: text('id').notNull().$defaultFn(createId),
     title: text('title', { length: 200 }).notNull(),
     description: text('description', { length: 1000 }),
-    isInviteOnly: integer('is_invite_only', { mode: 'boolean' }).notNull().default(false),
+    productTitle: text('product_title', { length: 200 }).notNull(),
+    category: text('category', { enum: ['electronics', 'realestate', 'arts', 'others'] })
+      .notNull()
+      .default('others'),
+    brand: text('product_brand', { length: 50 }),
     banner: text('banner', { length: 300 }),
+    productImages: text('product_images', { mode: 'json' }).$type<string[]>(),
     lot: integer('lot').notNull(),
     condition: text('condition', { enum: ['new', 'first-class', 'repairable'] }).notNull(),
-    productId: text('product_id').notNull(),
     ownerId: text('owner_id').notNull(),
     winnerId: text('winner_id'),
     startsAt: text('starts_at').notNull(),
     endsAt: text('ends_at').notNull(),
+    isInviteOnly: integer('is_invite_only', { mode: 'boolean' }).notNull().default(false),
     minBid: integer('min_bid').notNull(),
     finalBid: integer('final_bid'),
     minBidders: integer('min_bidders').notNull().default(2),
@@ -32,11 +36,6 @@ export const auctions = sqliteTable(
   function constraints(auctions) {
     return {
       primaryKey: primaryKey({ name: 'auctions_pkey', columns: [auctions.id] }),
-      productReference: foreignKey({
-        name: 'fk_product_id',
-        columns: [auctions.productId],
-        foreignColumns: [products.id]
-      }).onUpdate('cascade'),
       ownerReference: foreignKey({
         name: 'fk_owner_id',
         columns: [auctions.ownerId],
@@ -48,9 +47,10 @@ export const auctions = sqliteTable(
         foreignColumns: [users.id]
       }).onUpdate('cascade'),
 
-      indexProduct: index('idx_product_id_auctions').on(auctions.productId),
       indexOwner: index('idx_owner_id_auctions').on(auctions.ownerId),
       indexWinner: index('idx_winner_id_auctions').on(auctions.winnerId),
+      indexTitle: index('idx_title_auctions').on(auctions.title),
+      indexProductTitle: index('idx_product_title_auctions').on(auctions.productTitle),
       indexStartsAt: index('idx_starts_at_auctions').on(auctions.startsAt),
       indexEndsAt: index('idx_ends_at_auctions').on(auctions.endsAt)
     };
@@ -62,9 +62,10 @@ export type InsertAuction = typeof auctions.$inferInsert;
 export const selectAuctionsSnapshot = getTableColumns(auctions);
 export const selectAuctionSchema = createSelectSchema(auctions);
 export const responseAuctionSchema = selectAuctionSchema.extend({
-  product: selectProductSchema.extend({ isInterested: z.boolean() }),
-  owner: responesUserSchema,
-  winner: responesUserSchema.nullable(),
+  isInterested: z.boolean(),
+  productImages: z.array(z.string()).nullable(),
+  owner: responseUserSchema,
+  winner: responseUserSchema.nullable(),
   participationStatus: z.enum(['joined', 'invited', 'kicked', 'rejected']).nullable(),
   totalParticipants: z.number()
 });

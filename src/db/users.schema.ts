@@ -42,5 +42,5 @@ export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 export const selectUserSnapshot = getTableColumns(users);
 export const selectUserSchema = createSelectSchema(users);
-export const responesUserSchema = selectUserSchema;
+export const responseUserSchema = selectUserSchema;
 export type ResponseUser = User;

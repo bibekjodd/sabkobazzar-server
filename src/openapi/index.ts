@@ -5,7 +5,6 @@ import { auctionsDoc } from './auctions.doc';
 import { authDoc } from './auth.doc';
 import { eventsDoc } from './events.doc';
 import { notificationsDoc } from './notifications.doc';
-import { productsDoc } from './products.doc';
 import { statsDoc } from './stats.doc';
 import { usersDoc } from './users.doc';
 
@@ -33,7 +32,6 @@ export const openApiSpecs = createDocument({
     },
     ...authDoc,
     ...usersDoc,
-    ...productsDoc,
     ...auctionsDoc,
     ...notificationsDoc,
     ...eventsDoc,

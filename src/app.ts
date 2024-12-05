@@ -17,7 +17,6 @@ import { auctionsRoute } from './routes/auctions.route';
 import { authRoute } from './routes/auth.route';
 import { eventsRoute } from './routes/events.route';
 import { notificationsRoute } from './routes/notifications.route';
-import { productsRoute } from './routes/products.route';
 import { statsRoute } from './routes/stats.route';
 import { usersRoute } from './routes/users.route';
 
@@ -52,7 +51,6 @@ app.get(
 /* --------- routes --------- */
 app.use('/api/auth', authRoute);
 app.use('/api/users', usersRoute);
-app.use('/api/products', productsRoute);
 app.use('/api/auctions', auctionsRoute);
 app.use('/api/notifications', notificationsRoute);
 app.use('/api/events', eventsRoute);

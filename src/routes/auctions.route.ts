@@ -1,8 +1,8 @@
 import {
   cancelAuction,
-  getBids,
-  getAuctionParticipants,
   getAuctionDetails,
+  getAuctionParticipants,
+  getBids,
   getBidsSnapshot,
   inviteParticipant,
   joinAuction,
@@ -11,15 +11,16 @@ import {
   placeBid,
   queryAuctions,
   registerAuction,
-  searchInviteUsers
+  searchInviteUsers,
+  setInterested,
+  unsetInterested
 } from '@/controllers/auctions.controller';
 import { Router } from 'express';
 
 const router = Router();
 export const auctionsRoute = router;
 
-router.get('/', queryAuctions);
-router.route('/:id').post(registerAuction);
+router.route('/').get(queryAuctions).post(registerAuction);
 router.get('/:id', getAuctionDetails);
 router.put('/:id/cancel', cancelAuction);
 
@@ -32,3 +33,5 @@ router.put('/:auctionId/kick/:userId', kickParticipant);
 
 router.route('/:id/bids').get(getBids).post(placeBid);
 router.get('/:id/bids-snapshot', getBidsSnapshot);
+
+router.route('/:id/interested').post(setInterested).delete(unsetInterested);

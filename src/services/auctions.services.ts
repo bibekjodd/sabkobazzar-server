@@ -3,7 +3,6 @@ import { Auction, auctions, ResponseAuction, selectAuctionsSnapshot } from '@/db
 import { bids } from '@/db/bids.schema';
 import { interests } from '@/db/interests.schema';
 import { participants } from '@/db/participants.schema';
-import { products, selectProductSnapshot } from '@/db/products.schema';
 import { selectUserSnapshot, User, users } from '@/db/users.schema';
 import { BadRequestException, ForbiddenException, NotFoundException } from '@/lib/exceptions';
 import { and, count, desc, eq, getTableColumns, sql } from 'drizzle-orm';
@@ -21,15 +20,13 @@ export const auctionDetails = async ({
   const [auction] = await db
     .select({
       ...selectAuctionsSnapshot,
-      product: { ...selectProductSnapshot, isInterested: sql<boolean>`${interests.productId}` },
       owner: selectUserSnapshot,
       winner: getTableColumns(winner),
       participationStatus: participant.status,
-      totalParticipants: count(participants.userId)
+      totalParticipants: count(participants.userId),
+      isInterested: sql<boolean>`${interests.auctionId}`
     })
     .from(auctions)
-    .innerJoin(products, eq(auctions.productId, products.id))
-    .leftJoin(interests, and(eq(products.id, interests.productId), eq(interests.userId, userId)))
     .innerJoin(users, eq(auctions.ownerId, users.id))
     .leftJoin(
       participants,
@@ -40,11 +37,12 @@ export const auctionDetails = async ({
       and(eq(auctions.id, participant.auctionId), eq(participant.userId, userId))
     )
     .leftJoin(winner, eq(auctions.winnerId, winner.id))
+    .leftJoin(interests, and(eq(auctions.id, interests.auctionId), eq(interests.userId, userId)))
     .groupBy(auctions.id)
     .where(eq(auctions.id, auctionId));
   if (!auction) throw new NotFoundException('Auction does not exist');
-  auction.product.isInterested = !!auction.product.isInterested;
   const isCompleted = !auction.isCancelled && new Date().toISOString() > auction.endsAt;
+  auction.isInterested = !!auction.isInterested;
 
   if (isCompleted && !auction.winner && !auction.isUnbidded) {
     const [winner] = await db
@@ -121,6 +119,7 @@ export const inviteParticipantToAuction = async ({
   ownerId: string;
 }): Promise<{ auction: Auction; participant: User }> => {
   if (userId === ownerId) throw new BadRequestException("Auction host can't invite themselves");
+
   const auctionPromise = auctionDetails({ auctionId, userId });
   const participantPromise = db
     .select()

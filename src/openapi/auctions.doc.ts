@@ -1,6 +1,6 @@
 import { responseAuctionSchema } from '@/db/auctions.schema';
 import { responseBidSchema } from '@/db/bids.schema';
-import { responesUserSchema } from '@/db/users.schema';
+import { responseUserSchema } from '@/db/users.schema';
 import {
   getBidsQuerySchema,
   placeBidSchema,
@@ -15,11 +15,25 @@ import 'zod-openapi/extend';
 const tags = ['Auction'];
 export const auctionsDoc: ZodOpenApiPathsObject = {
   '/api/auctions/{id}': {
+    get: {
+      tags,
+      summary: 'Get auctions details',
+      requestParams: { path: z.object({ id: z.string() }).openapi({ description: 'Auction id' }) },
+      responses: {
+        200: {
+          description: 'Auction details fetched successfully',
+          content: { 'application/json': { schema: z.object({ auction: responseAuctionSchema }) } }
+        },
+        404: { description: 'Auction does not exist' }
+      }
+    }
+  },
+  '/api/auctions': {
     post: {
       tags,
       summary: 'Register for an auction',
       requestParams: {
-        path: z.object({ id: z.string().openapi({ description: 'Product id' }) })
+        path: z.object({ id: z.string().openapi({ description: 'auctionId id' }) })
       },
       requestBody: {
         content: {
@@ -34,25 +48,10 @@ export const auctionsDoc: ZodOpenApiPathsObject = {
         400: { description: 'Invalid request body payload' },
         401: { description: 'User is not authenticated' },
         403: {
-          description:
-            'User is either admin or trying to register the auction to the products not owned by self or already has 5 pending auctions'
+          description: 'User is either admin or already has 5 pending auctions'
         }
       }
     },
-    get: {
-      tags,
-      summary: 'Get auctions details',
-      requestParams: { path: z.object({ id: z.string() }).openapi({ description: 'Auction id' }) },
-      responses: {
-        200: {
-          description: 'Auctiond details fetched successfully',
-          content: { 'application/json': { schema: z.object({ auction: responseAuctionSchema }) } }
-        },
-        404: { description: 'Auction does not exist' }
-      }
-    }
-  },
-  '/api/auctions': {
     get: {
       tags,
       summary: 'Fetch auctions',
@@ -87,7 +86,7 @@ export const auctionsDoc: ZodOpenApiPathsObject = {
         200: { description: 'Auction cancelled successfully' },
         400: { description: 'Auction is already cancelled or completed' },
         401: { description: 'User is not authenticated' },
-        403: { description: 'User is not admin or product owner to cancel the auction' },
+        403: { description: 'User is not admin or Auction owner to cancel the auction' },
         404: { description: 'Auction does not exist' }
       }
     }
@@ -104,7 +103,7 @@ export const auctionsDoc: ZodOpenApiPathsObject = {
         200: {
           description: 'Participants list fetched successfully',
           content: {
-            'application/json': { schema: z.object({ participants: z.array(responesUserSchema) }) }
+            'application/json': { schema: z.object({ participants: z.array(responseUserSchema) }) }
           }
         }
       }
@@ -161,7 +160,7 @@ export const auctionsDoc: ZodOpenApiPathsObject = {
             'application/json': {
               schema: z.object({
                 users: z.array(
-                  responesUserSchema.extend({
+                  responseUserSchema.extend({
                     status: z.enum(['invited', 'joined', 'rejected', 'kicked']).nullable()
                   })
                 )
@@ -260,6 +259,33 @@ export const auctionsDoc: ZodOpenApiPathsObject = {
             'application/json': { schema: z.object({ bids: z.array(responseBidSchema) }) }
           }
         }
+      }
+    }
+  },
+
+  '/api/auctions/:id/interested': {
+    post: {
+      tags,
+      summary: 'Set Auction as interested',
+      requestParams: {
+        path: z.object({ id: z.string() })
+      },
+      responses: {
+        201: { description: 'Auction set as interested successfully' },
+        401: { description: 'User is not authorized' },
+        404: { description: 'Auction does not exist' }
+      }
+    },
+    delete: {
+      tags,
+      summary: 'Unset Auction from interested',
+      requestParams: {
+        path: z.object({ id: z.string() })
+      },
+      responses: {
+        200: { description: 'Auction unset from interested successfully' },
+        401: { description: 'User is not authorized' },
+        404: { description: 'Auction does not exist is is already unset interested' }
       }
     }
   }

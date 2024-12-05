@@ -3,7 +3,6 @@ import { auctions, ResponseAuction, selectAuctionsSnapshot } from '@/db/auctions
 import { bids, ResponseBid, selectBidSnapshot } from '@/db/bids.schema';
 import { interests } from '@/db/interests.schema';
 import { participants, ParticipationStatus } from '@/db/participants.schema';
-import { products, selectProductSnapshot } from '@/db/products.schema';
 import { ResponseUser, selectUserSnapshot, User, users } from '@/db/users.schema';
 import {
   getBidsQuerySchema,
@@ -48,75 +47,60 @@ import {
   max,
   ne,
   or,
-  SQL,
-  sql
+  sql,
+  SQL
 } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/sqlite-core';
 
-export const registerAuction = handleAsync<
-  { id: string },
-  { auction: ResponseAuction; message: string }
->(async (req, res) => {
-  if (!req.user) throw new UnauthorizedException();
-  if (req.user.role === 'admin')
-    throw new ForbiddenException('Admins are not allowed to register auction');
+export const registerAuction = handleAsync<unknown, { auction: ResponseAuction; message: string }>(
+  async (req, res) => {
+    if (!req.user) throw new UnauthorizedException();
+    if (req.user.role === 'admin')
+      throw new ForbiddenException('Admins are not allowed to register auction');
 
-  const data = registerAuctionSchema.parse(req.body);
-  const productId = req.params.id;
+    const data = registerAuctionSchema.parse(req.body);
 
-  const [product] = await db
-    .select({ ...selectProductSnapshot, isInterested: sql<boolean>`${interests.productId}` })
-    .from(products)
-    .leftJoin(
-      interests,
-      and(eq(products.id, interests.productId), eq(interests.userId, req.user.id))
-    )
-    .groupBy(products.id)
-    .where(eq(products.id, productId));
-  if (!product) throw new NotFoundException('Product does not exist');
-  if (product.ownerId !== req.user.id)
-    throw new ForbiddenException('You can only register auction to the product owned by yourself');
+    const pendingAuctions = await db
+      .select({ id: auctions.id })
+      .from(auctions)
+      .where(
+        and(
+          eq(auctions.ownerId, req.user.id),
+          eq(auctions.isCompleted, false),
+          gt(auctions.startsAt, new Date().toISOString())
+        )
+      );
 
-  const pendingAuctions = await db
-    .select({ id: auctions.id })
-    .from(auctions)
-    .where(
-      and(
-        eq(auctions.ownerId, req.user.id),
-        eq(auctions.isCompleted, false),
-        gt(auctions.startsAt, new Date().toISOString())
-      )
-    );
+    if (pendingAuctions.length >= 5)
+      throw new ForbiddenException(
+        "Can't register auction while 5 or more auctions are already pending"
+      );
 
-  if (pendingAuctions.length >= 5)
-    throw new ForbiddenException(
-      "Can't register auction while 5 or more auctions are already pending"
-    );
+    const endsAt = new Date(new Date(data.startsAt).getTime() + MILLIS.HOUR).toISOString();
+    const [registeredAuction] = await db
+      .insert(auctions)
+      .values({ ...data, endsAt, ownerId: req.user.id })
+      .returning();
+    if (!registeredAuction) throw new InternalServerException();
 
-  const endsAt = new Date(new Date(data.startsAt).getTime() + MILLIS.HOUR).toISOString();
-  const [registeredAuction] = await db
-    .insert(auctions)
-    .values({ ...data, endsAt, ownerId: req.user.id, productId })
-    .returning();
-  if (!registeredAuction) throw new InternalServerException();
-
-  await registerAuctionNotification({
-    auction: registeredAuction,
-    user: req.user
-  });
-  const [owner] = await db.select().from(users).where(eq(users.id, registeredAuction.ownerId));
-  return res.status(201).json({
-    message: 'Product registered for auction successfully',
-    auction: {
-      ...registeredAuction,
-      owner: owner!,
-      product,
-      winner: null,
-      participationStatus: null,
-      totalParticipants: 0
-    }
-  });
-});
+    await registerAuctionNotification({
+      auction: registeredAuction,
+      user: req.user
+    });
+    const [owner] = await db.select().from(users).where(eq(users.id, registeredAuction.ownerId));
+    return res.status(201).json({
+      message: 'Auction registered successfully',
+      auction: {
+        ...registeredAuction,
+        owner: owner!,
+        winner: null,
+        participationStatus: null,
+        totalParticipants: 0,
+        isInterested: false
+      }
+    });
+  }
+);
 
 export const getAuctionDetails = handleAsync<{ id: string }, { auction: ResponseAuction }>(
   async (req, res) => {
@@ -137,7 +121,7 @@ export const cancelAuction = handleAsync<{ id: string }, { message: string }>(as
   if (auction.isCancelled) throw new BadRequestException('Auction is already cancelled');
 
   if (!(auction.ownerId === req.user.id || req.user.role === 'admin'))
-    throw new ForbiddenException('Only product owner or admin can cancel the auction');
+    throw new ForbiddenException('Only auction host or admin can cancel the auction');
 
   await db.update(auctions).set({ isCancelled: true }).where(eq(auctions.id, auctionId));
   findAuctionParticipants(auction.id).then((result) => {
@@ -157,7 +141,6 @@ export const queryAuctions = handleAsync<
     cursor,
     limit,
     owner,
-    product,
     sort,
     condition,
     from,
@@ -165,7 +148,8 @@ export const queryAuctions = handleAsync<
     status,
     to,
     unbidded,
-    title
+    title,
+    category
   } = queryAuctionsSchema.parse(req.query);
 
   const currentDate = new Date();
@@ -236,17 +220,19 @@ export const queryAuctions = handleAsync<
     .select({
       ...selectAuctionsSnapshot,
       owner: selectUserSnapshot,
-      product: { ...selectProductSnapshot, isInterested: sql<boolean>`${interests.productId}` },
       winner: getTableColumns(winner),
       participationStatus: participant.status,
-      totalParticipants: count(participants.userId)
+      totalParticipants: count(participants.userId),
+      isInterested: sql<boolean>`${interests.auctionId}`
     })
     .from(auctions)
     .where(
       and(
-        title ? like(auctions.title, `%${title}%`) : undefined,
+        title
+          ? or(like(auctions.title, `%${title}%`), like(auctions.title, auctions.productTitle))
+          : undefined,
         owner ? eq(auctions.ownerId, owner) : undefined,
-        product ? eq(auctions.productId, product) : undefined,
+        category ? eq(auctions.category, category) : undefined,
         from ? gte(auctions.startsAt, from) : undefined,
         to ? lte(auctions.startsAt, to) : undefined,
         inviteOnly === true || inviteOnly === false
@@ -258,10 +244,9 @@ export const queryAuctions = handleAsync<
         unbidded === true || unbidded === false ? eq(auctions.isUnbidded, unbidded) : undefined
       )
     )
-    .innerJoin(products, eq(auctions.productId, products.id))
     .leftJoin(
       interests,
-      and(eq(products.id, interests.productId), eq(interests.userId, req.user?.id || ''))
+      and(eq(auctions.id, interests.auctionId), eq(interests.userId, req.user?.id || ''))
     )
     .innerJoin(users, eq(auctions.ownerId, users.id))
     .leftJoin(
@@ -284,9 +269,9 @@ export const queryAuctions = handleAsync<
       return [desc(t.startsAt), desc(t.id)];
     });
 
-  const finalResult: ResponseAuction[] = result.map((item) => ({
-    ...item,
-    product: { ...item.product, isInterested: !!item.product.isInterested }
+  const finalResult: ResponseAuction[] = result.map((auction) => ({
+    ...auction,
+    isInterested: !!auction.isInterested
   }));
 
   const lastResult = finalResult.at(finalResult.length - 1);
@@ -440,7 +425,7 @@ export const kickParticipant = handleAsync<
   const isStarted = Date.now() >= new Date(auction.startsAt).getTime();
   if (isStarted) throw new ForbiddenException("Can't kick bidder after the auction has started");
   if (!(req.user.role === 'admin' || req.user.id === auction.ownerId))
-    throw new ForbiddenException('Only admin or product owner can kick the participant');
+    throw new ForbiddenException('Only admin or auction host can kick the participant');
   if (auction.participationStatus === 'kicked')
     throw new BadRequestException('User is already kicked from the auction');
   if (auction.participationStatus === 'rejected')
@@ -609,4 +594,35 @@ export const searchInviteUsers = handleAsync<
     )
     .groupBy(users.id);
   return res.json({ users: result });
+});
+
+export const setInterested = handleAsync<{ id: string }>(async (req, res) => {
+  if (!req.user) throw new UnauthorizedException();
+  const auctionId = req.params.id;
+  const [isSetInterested] = await db
+    .insert(interests)
+    .values({ auctionId, userId: req.user.id })
+    .onConflictDoUpdate({
+      target: [interests.userId, interests.auctionId],
+      set: { at: new Date().toISOString() }
+    })
+    .returning();
+
+  if (!isSetInterested) throw new NotFoundException('Auction does not exist');
+
+  return res.status(201).json({ message: 'Auction set interested successfully' });
+});
+
+export const unsetInterested = handleAsync<{ id: string }>(async (req, res) => {
+  if (!req.user) throw new UnauthorizedException();
+  const auctionId = req.params.id;
+  const [isSetUnInterested] = await db
+    .delete(interests)
+    .where(and(eq(interests.auctionId, auctionId), eq(interests.userId, req.user.id)))
+    .returning();
+
+  if (!isSetUnInterested)
+    throw new NotFoundException('Auction does not exist is is already unset interested');
+
+  return res.json({ message: 'Auction unset interested successfully' });
 });

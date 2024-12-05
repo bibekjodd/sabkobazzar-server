@@ -6,10 +6,14 @@ import { imageSchema } from './users.dto';
 export const registerAuctionSchema = z.object({
   title: z.string().trim().max(200, 'Too long title'),
   description: z.string().trim().max(1000, 'Too long description').optional(),
-  isInviteOnly: z.boolean().default(false),
+  productTitle: z.string().trim().max(200, 'Too long product title'),
+  category: z.enum(['arts', 'electronics', 'realestate', 'others']).optional(),
+  brand: z.string().max(50, 'Too long brand title').optional(),
   banner: imageSchema.optional(),
+  productImages: z.array(imageSchema).max(3, 'Max 3 product images are allowed').optional(),
   lot: z.number().min(1).max(10, "Lot can't exceed 10"),
   condition: z.enum(['new', 'first-class', 'repairable']),
+  isInviteOnly: z.boolean().default(false),
   startsAt: z
     .string({ required_error: 'Auction start time is required' })
     .datetime()
@@ -62,8 +66,8 @@ export const queryAuctionsSchema = z
     ),
     title: z.string().optional(),
     limit: z.preprocess((val) => Number(val) || undefined, z.number().min(1).max(100)).default(20),
+    category: z.enum(['arts', 'electronics', 'realestate', 'others']).optional(),
     owner: z.string().optional(),
-    product: z.string().optional(),
     sort: z
       .enum(['title_asc', 'title_desc', 'starts_at_asc', 'starts_at_desc', 'bid_asc', 'bid_desc'])
       .default('starts_at_desc'),

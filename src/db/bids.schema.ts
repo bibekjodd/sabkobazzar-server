@@ -4,7 +4,7 @@ import { foreignKey, index, integer, primaryKey, sqliteTable, text } from 'drizz
 import { createSelectSchema } from 'drizzle-zod';
 import { z } from 'zod';
 import { auctions } from './auctions.schema';
-import { responesUserSchema, users } from './users.schema';
+import { responseUserSchema, users } from './users.schema';
 
 export const bids = sqliteTable(
   'bids',
@@ -44,5 +44,5 @@ export type Bid = typeof bids.$inferSelect;
 export type InsertBid = typeof bids.$inferInsert;
 export const selectBidSnapshot = getTableColumns(bids);
 export const selectBidSchema = createSelectSchema(bids);
-export const responseBidSchema = selectBidSchema.extend({ bidder: responesUserSchema });
+export const responseBidSchema = selectBidSchema.extend({ bidder: responseUserSchema });
 export type ResponseBid = z.infer<typeof responseBidSchema>;

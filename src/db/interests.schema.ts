@@ -1,11 +1,11 @@
 import { foreignKey, index, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
-import { products } from './products.schema';
+import { auctions } from './auctions.schema';
 import { users } from './users.schema';
 
 export const interests = sqliteTable(
   'interests',
   {
-    productId: text('product_id').notNull(),
+    auctionId: text('auction_id').notNull(),
     userId: text('user_id').notNull(),
     at: text('at')
       .notNull()
@@ -15,12 +15,12 @@ export const interests = sqliteTable(
     return {
       primaryKey: primaryKey({
         name: 'interests_pkey',
-        columns: [interests.productId, interests.userId]
+        columns: [interests.auctionId, interests.userId]
       }),
       productReference: foreignKey({
-        name: 'fk_product_id',
-        columns: [interests.productId],
-        foreignColumns: [products.id]
+        name: 'fk_auction_id',
+        columns: [interests.auctionId],
+        foreignColumns: [auctions.id]
       })
         .onDelete('cascade')
         .onUpdate('cascade'),
@@ -32,7 +32,7 @@ export const interests = sqliteTable(
         .onDelete('cascade')
         .onUpdate('cascade'),
 
-      indexProduct: index('idx_product_id_interests').on(interests.productId),
+      indexProduct: index('idx_auction_id_interests').on(interests.auctionId),
       indexUser: index('idx_user_id_intersts').on(interests.userId),
       indexCreatedAt: index('idx_at_interests').on(interests.at)
     };
