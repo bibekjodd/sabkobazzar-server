@@ -8,7 +8,7 @@ import { BadRequestException, ForbiddenException, NotFoundException } from '@/li
 import { and, count, desc, eq, getTableColumns, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/sqlite-core';
 
-export const auctionDetails = async ({
+export const findAuctionDetails = async ({
   userId,
   auctionId
 }: {
@@ -41,10 +41,11 @@ export const auctionDetails = async ({
     .groupBy(auctions.id)
     .where(eq(auctions.id, auctionId));
   if (!auction) throw new NotFoundException('Auction does not exist');
-  const isCompleted = !auction.isCancelled && new Date().toISOString() > auction.endsAt;
+
+  const isCompleted = auction.status !== 'cancelled' && new Date().toISOString() > auction.endsAt;
   auction.isInterested = !!auction.isInterested;
 
-  if (isCompleted && !auction.winner && !auction.isUnbidded) {
+  if (isCompleted && !auction.winner && auction.status !== 'unbidded') {
     const [winner] = await db
       .select({ ...selectUserSnapshot, amount: bids.amount })
       .from(bids)
@@ -58,16 +59,12 @@ export const auctionDetails = async ({
       auction.winnerId = winner.id;
       auction.finalBid = winner.amount;
       db.update(auctions)
-        .set({ winnerId: winner.id, finalBid: winner.amount, isCompleted: true })
+        .set({ winnerId: winner.id, finalBid: winner.amount, status: 'completed' })
         .where(eq(auctions.id, auctionId))
         .execute();
     } else {
-      auction.isUnbidded = true;
-      auction.isCompleted = true;
-      db.update(auctions)
-        .set({ isUnbidded: true, isCompleted: true })
-        .where(eq(auctions.id, auctionId))
-        .execute();
+      auction.status = 'unbidded';
+      db.update(auctions).set({ status: 'unbidded' }).where(eq(auctions.id, auctionId)).execute();
     }
   }
 
@@ -120,7 +117,7 @@ export const inviteParticipantToAuction = async ({
 }): Promise<{ auction: Auction; participant: User }> => {
   if (userId === ownerId) throw new BadRequestException("Auction host can't invite themselves");
 
-  const auctionPromise = auctionDetails({ auctionId, userId });
+  const auctionPromise = findAuctionDetails({ auctionId, userId });
   const participantPromise = db
     .select()
     .from(users)
@@ -147,8 +144,8 @@ export const inviteParticipantToAuction = async ({
   if (!participant) throw new NotFoundException('User does not exist');
   if (!auction.isInviteOnly) throw new BadRequestException('The auction is public to all users');
   if (totalInvites >= 50) throw new ForbiddenException("Can't invite more than 50 users");
-  if (auction.isCancelled) throw new BadRequestException('Auction is already cancelled');
-  if (auction.isCompleted) throw new BadRequestException('Auction is already completed');
+  if (auction.status === 'cancelled') throw new BadRequestException('Auction is already cancelled');
+  if (auction.status === 'completed') throw new BadRequestException('Auction is already completed');
   if (auction.startsAt < new Date().toISOString())
     throw new BadRequestException("Can't invite users after the auction has started");
   if (auction.participationStatus === 'invited')
@@ -162,14 +159,14 @@ export const inviteParticipantToAuction = async ({
     await db.insert(participants).values({
       auctionId,
       userId,
-      at: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
       status: 'invited'
     });
   }
   if (auction.participationStatus == 'kicked') {
     await db
       .update(participants)
-      .set({ status: 'invited', at: new Date().toISOString() })
+      .set({ status: 'invited', createdAt: new Date().toISOString() })
       .where(and(eq(participants.auctionId, auctionId), eq(participants.userId, userId)));
   }
 

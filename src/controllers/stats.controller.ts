@@ -3,7 +3,7 @@ import { auctions } from '@/db/auctions.schema';
 import { UnauthorizedException } from '@/lib/exceptions';
 import { handleAsync } from '@/middlewares/handle-async';
 import { ResponseAuctionsStats } from '@/openapi/stats.doc';
-import { and, eq, gte, sql } from 'drizzle-orm';
+import { and, eq, gte, sql, sum } from 'drizzle-orm';
 
 export const getAuctionsStats = handleAsync<unknown, ResponseAuctionsStats>(async (req, res) => {
   if (!req.user) throw new UnauthorizedException();
@@ -14,10 +14,10 @@ export const getAuctionsStats = handleAsync<unknown, ResponseAuctionsStats>(asyn
 
   const result = await db
     .select({
-      cancelled: sql<number>`cast(sum(${auctions.isCancelled}) as integer)`,
-      completed: sql<number>`cast(sum(${auctions.isCompleted}) as integer)`,
+      cancelled: sum(eq(auctions.status, 'cancelled')),
+      completed: sum(eq(auctions.status, 'completed')),
       date: sql<string>`strftime('%Y-%m',${auctions.startsAt})`,
-      revenue: sql<number>`cast(sum(${auctions.finalBid}) as integer)`
+      revenue: sum(auctions.finalBid)
     })
     .from(auctions)
     .groupBy((t) => t.date)
@@ -25,7 +25,9 @@ export const getAuctionsStats = handleAsync<unknown, ResponseAuctionsStats>(asyn
 
   const finalResult = result.map((resultItem) => ({
     ...resultItem,
-    revenue: resultItem.revenue || 0
+    cancelled: Number(resultItem.cancelled) || 0,
+    completed: Number(resultItem.completed) || 0,
+    revenue: Number(resultItem.revenue) || 0
   }));
 
   return res.json({ stats: finalResult });

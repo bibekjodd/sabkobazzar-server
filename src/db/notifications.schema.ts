@@ -1,38 +1,38 @@
 import { createId } from '@paralleldrive/cuid2';
 import { getTableColumns } from 'drizzle-orm';
-import { foreignKey, index, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { foreignKey, index, primaryKey, sqliteTable } from 'drizzle-orm/sqlite-core';
 import { createSelectSchema } from 'drizzle-zod';
 import { z } from 'zod';
 import { users } from './users.schema';
 
 export const notifications = sqliteTable(
   'notifications',
-  {
-    id: text('id').notNull().$defaultFn(createId),
-    userId: text('user_id').notNull(),
-    title: text('title', { length: 200 }).notNull(),
-    description: text('description', { length: 400 }),
-    receivedAt: text('received_at')
+  (t) => ({
+    id: t.text().notNull().$defaultFn(createId),
+    userId: t.text('user_id').notNull(),
+    title: t.text({ length: 200 }).notNull(),
+    description: t.text({ length: 400 }),
+    createdAt: t
+      .text('created_at')
       .notNull()
       .$defaultFn(() => new Date().toISOString()),
-    entity: text('entity').notNull(),
-    params: text('params'),
-    type: text('type')
-  },
-  function constraints(notifications) {
-    return {
-      primaryKey: primaryKey({ name: 'notifications_pkey', columns: [notifications.id] }),
-      userReference: foreignKey({
-        name: 'fk_user_id',
-        columns: [notifications.userId],
-        foreignColumns: [users.id]
-      })
-        .onDelete('cascade')
-        .onUpdate('cascade'),
-      indexUser: index('idx_user_id_notifications').on(notifications.userId),
-      indexReceivedAt: index('idx_received_at').on(notifications.receivedAt)
-    };
-  }
+    entity: t.text().notNull(),
+    params: t.text(),
+    type: t.text()
+  }),
+
+  (notifications) => [
+    primaryKey({ name: 'notifications_pkey', columns: [notifications.id] }),
+    foreignKey({
+      name: 'fk_user_id',
+      columns: [notifications.userId],
+      foreignColumns: [users.id]
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
+    index('idx_user_id_notifications').on(notifications.userId),
+    index('idx_received_at').on(notifications.createdAt)
+  ]
 );
 
 export type Notification = typeof notifications.$inferSelect;

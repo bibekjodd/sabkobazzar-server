@@ -5,6 +5,7 @@ import { interests } from '@/db/interests.schema';
 import { participants, ParticipationStatus } from '@/db/participants.schema';
 import { ResponseUser, selectUserSnapshot, User, users } from '@/db/users.schema';
 import {
+  cancelAuctionSchema,
   getBidsQuerySchema,
   placeBidSchema,
   queryAuctionsSchema,
@@ -28,7 +29,7 @@ import {
   registerAuctionNotification
 } from '@/notifications/auctions.notifications';
 import {
-  auctionDetails,
+  findAuctionDetails,
   findAuctionParticipants,
   inviteParticipantToAuction
 } from '@/services/auctions.services';
@@ -66,12 +67,15 @@ export const registerAuction = handleAsync<unknown, { auction: ResponseAuction; 
       .where(
         and(
           eq(auctions.ownerId, req.user.id),
-          eq(auctions.isCompleted, false),
-          gt(auctions.startsAt, new Date().toISOString())
+          gt(auctions.startsAt, new Date().toISOString()),
+          ne(auctions.status, 'cancelled')
         )
-      );
+      )
+      .limit(5)
+      .execute()
+      .then((res) => res.length);
 
-    if (pendingAuctions.length >= 5)
+    if (pendingAuctions >= 5)
       throw new ForbiddenException(
         "Can't register auction while 5 or more auctions are already pending"
       );
@@ -105,7 +109,7 @@ export const registerAuction = handleAsync<unknown, { auction: ResponseAuction; 
 export const getAuctionDetails = handleAsync<{ id: string }, { auction: ResponseAuction }>(
   async (req, res) => {
     const auctionId = req.params.id;
-    const auction = await auctionDetails({ auctionId, userId: req.user?.id || '' });
+    const auction = await findAuctionDetails({ auctionId, userId: req.user?.id || '' });
     return res.json({ auction });
   }
 );
@@ -114,20 +118,26 @@ export const cancelAuction = handleAsync<{ id: string }, { message: string }>(as
   if (!req.user) throw new UnauthorizedException();
 
   const auctionId = req.params.id;
-  const auction = await auctionDetails({ auctionId: auctionId, userId: req.user.id });
+  const auction = await findAuctionDetails({ auctionId: auctionId, userId: req.user.id });
 
-  if (!auction) throw new NotFoundException('Auction does not exist');
-  if (auction.isCompleted) throw new BadRequestException('Auction is already completed');
-  if (auction.isCancelled) throw new BadRequestException('Auction is already cancelled');
+  const { cancelReason } = cancelAuctionSchema.parse(req.body);
+
+  if (auction.status === 'completed' || auction.status === 'unbidded')
+    throw new BadRequestException('Auction is already completed');
+  if (auction.status === 'cancelled') throw new BadRequestException('Auction is already cancelled');
 
   if (!(auction.ownerId === req.user.id || req.user.role === 'admin'))
     throw new ForbiddenException('Only auction host or admin can cancel the auction');
 
-  await db.update(auctions).set({ isCancelled: true }).where(eq(auctions.id, auctionId));
+  await db
+    .update(auctions)
+    .set({ status: 'cancelled', cancelReason })
+    .where(eq(auctions.id, auctionId));
+
   findAuctionParticipants(auction.id).then((result) => {
     cancelAuctionNotifications({
       auction,
-      users: [req.user!, ...result]
+      users: [auction.owner, ...result]
     });
   });
   return res.json({ message: 'Auction cancelled successfully' });
@@ -154,18 +164,16 @@ export const queryAuctions = handleAsync<
 
   const currentDate = new Date();
   let statusCondition: SQL<unknown> | undefined = undefined;
-  if (status === 'cancelled') statusCondition = eq(auctions.isCancelled, true);
-  else if (status === 'completed') statusCondition = eq(auctions.isCompleted, true);
-  else if (status === 'pending') {
+  if (status === 'cancelled' || status === 'completed')
+    statusCondition = eq(auctions.status, status);
+  else if (status === 'pending')
     statusCondition = and(
-      eq(auctions.isCancelled, false),
-      eq(auctions.isCompleted, false),
+      eq(auctions.status, 'pending'),
       gt(auctions.startsAt, currentDate.toISOString())
     );
-  } else if (status === 'live') {
+  else if (status === 'live') {
     statusCondition = and(
-      eq(auctions.isCancelled, false),
-      eq(auctions.isCompleted, false),
+      ne(auctions.status, 'cancelled'),
       and(
         gt(auctions.endsAt, currentDate.toISOString()),
         lt(auctions.startsAt, currentDate.toISOString())
@@ -241,7 +249,7 @@ export const queryAuctions = handleAsync<
         condition ? eq(auctions.condition, condition) : undefined,
         statusCondition,
         cursorCondition,
-        unbidded === true || unbidded === false ? eq(auctions.isUnbidded, unbidded) : undefined
+        unbidded === true || unbidded === false ? eq(auctions.status, 'unbidded') : undefined
       )
     )
     .leftJoin(
@@ -303,12 +311,11 @@ export const joinAuction = handleAsync<
   if (req.user.role === 'admin') throw new ForbiddenException("Admins can't join the auction");
 
   const auctionId = req.params.id;
-  const auction = await auctionDetails({ auctionId, userId: req.user.id });
+  const auction = await findAuctionDetails({ auctionId, userId: req.user.id });
 
   if (!auction) throw new NotFoundException('Auction does not exist');
   if (auction.ownerId === req.user.id)
-    throw new ForbiddenException('Now allowed to join the auction hosted by self');
-
+    throw new ForbiddenException('User is is the host of the auction');
   if (auction.participationStatus === 'joined')
     throw new BadRequestException('You have already joined the auction');
   if (auction.participationStatus === 'kicked')
@@ -318,8 +325,8 @@ export const joinAuction = handleAsync<
   if (auction.isInviteOnly && auction.participationStatus !== 'invited')
     throw new BadRequestException('Only invited users can join the auction');
 
-  if (auction.isCancelled) throw new BadRequestException('Auction is already cancelled');
-  if (auction.isCompleted) throw new BadRequestException('Auction is aleady completed');
+  if (auction.status === 'cancelled') throw new BadRequestException('Auction is already cancelled');
+  if (auction.status === 'completed') throw new BadRequestException('Auction is aleady completed');
   if (Date.now() > new Date(auction.startsAt).getTime())
     throw new BadRequestException('Auction has already started');
 
@@ -332,7 +339,7 @@ export const joinAuction = handleAsync<
   if (auction.participationStatus === 'invited') {
     await db
       .update(participants)
-      .set({ status: 'joined', at: new Date().toISOString() })
+      .set({ status: 'joined', createdAt: new Date().toISOString() })
       .where(and(eq(participants.auctionId, auctionId), eq(participants.userId, req.user.id)));
   }
   await auctionParticipantNotification({
@@ -367,8 +374,8 @@ export const leaveAuction = handleAsync<{ id: string }, { message: string }>(asy
     .groupBy(auctions.id);
 
   if (!auction) throw new NotFoundException('Auction does not exist');
-  if (auction.isCancelled) throw new BadRequestException('Auction is already cancelled');
-  if (auction.isCompleted) throw new BadRequestException('Auction is already completed');
+  if (auction.status === 'cancelled') throw new BadRequestException('Auction is already cancelled');
+  if (auction.status === 'completed') throw new BadRequestException('Auction is already completed');
 
   const startTime = new Date(auction.startsAt).getTime();
   const sixHoursFromNow = Date.now() + 6 * MILLIS.HOUR;
@@ -417,7 +424,7 @@ export const kickParticipant = handleAsync<
     .where(eq(users.id, userId))
     .execute()
     .then((res) => res[0]);
-  const auctionResultPromise = auctionDetails({ userId, auctionId });
+  const auctionResultPromise = findAuctionDetails({ userId, auctionId });
 
   const [participant, auction] = await Promise.all([participantPromise, auctionResultPromise]);
 
@@ -464,8 +471,8 @@ export const placeBid = handleAsync<{ id: string }, { bid: ResponseBid; message:
       .where(
         and(
           eq(auctions.id, auctionId),
-          eq(auctions.isCompleted, false),
-          eq(auctions.isCancelled, false),
+          ne(auctions.status, 'completed'),
+          ne(auctions.status, 'cancelled'),
           lte(auctions.startsAt, new Date().toISOString())
         )
       );
@@ -517,22 +524,28 @@ export const getBids = handleAsync<
       and(
         eq(bids.auctionId, auctionId),
         cursor && sort === 'asc'
-          ? or(gt(bids.at, cursor.value), and(eq(bids.at, cursor.value), gt(bids.id, cursor.id)))
+          ? or(
+              gt(bids.createdAt, cursor.value),
+              and(eq(bids.createdAt, cursor.value), gt(bids.id, cursor.id))
+            )
           : undefined,
         cursor && sort === 'desc'
-          ? or(lt(bids.at, cursor.value), and(eq(bids.at, cursor.value), lt(bids.id, cursor.id)))
+          ? or(
+              lt(bids.createdAt, cursor.value),
+              and(eq(bids.createdAt, cursor.value), lt(bids.id, cursor.id))
+            )
           : undefined
       )
     )
     .orderBy((t) => {
-      if (sort === 'asc') return [asc(t.at), asc(t.id)];
-      return [desc(t.at), desc(t.id)];
+      if (sort === 'asc') return [asc(t.createdAt), asc(t.id)];
+      return [desc(t.createdAt), desc(t.id)];
     })
     .limit(limit);
 
   let responseCursor: string | undefined = undefined;
   const lastResult = result[result.length - 1];
-  if (lastResult) responseCursor = encodeCursor({ id: lastResult.id, value: lastResult.at });
+  if (lastResult) responseCursor = encodeCursor({ id: lastResult.id, value: lastResult.createdAt });
 
   return res.json({ cursor: responseCursor, bids: result });
 });
@@ -546,7 +559,7 @@ export const getBidsSnapshot = handleAsync<{ id: string }, { bids: ResponseBid[]
         ...selectBidSnapshot,
         bidder: selectUserSnapshot,
         amount: max(bids.amount),
-        at: max(bids.at)
+        at: max(bids.createdAt)
       })
       .from(participants)
       .innerJoin(users, eq(participants.userId, users.id))
@@ -558,7 +571,7 @@ export const getBidsSnapshot = handleAsync<{ id: string }, { bids: ResponseBid[]
     const finalResult: ResponseBid[] = result.map((item, i) => ({
       ...item,
       amount: item.amount || 0,
-      at: item.at || new Date().toISOString(),
+      createdAt: item.at || new Date().toISOString(),
       auctionId,
       bidderId: item.bidder.id,
       id: item.id || i.toString()
@@ -604,7 +617,7 @@ export const setInterested = handleAsync<{ id: string }>(async (req, res) => {
     .values({ auctionId, userId: req.user.id })
     .onConflictDoUpdate({
       target: [interests.userId, interests.auctionId],
-      set: { at: new Date().toISOString() }
+      set: { createdAt: new Date().toISOString() }
     })
     .returning();
 

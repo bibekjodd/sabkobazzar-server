@@ -16,6 +16,7 @@ import { serializer } from './passport/serializer';
 import { auctionsRoute } from './routes/auctions.route';
 import { authRoute } from './routes/auth.route';
 import { eventsRoute } from './routes/events.route';
+import { feedbacksRoute } from './routes/feedbacks.route';
 import { notificationsRoute } from './routes/notifications.route';
 import { statsRoute } from './routes/stats.route';
 import { usersRoute } from './routes/users.route';
@@ -55,6 +56,7 @@ app.use('/api/auctions', auctionsRoute);
 app.use('/api/notifications', notificationsRoute);
 app.use('/api/events', eventsRoute);
 app.use('/api/stats', statsRoute);
+app.use('/api/feedbacks', feedbacksRoute);
 app.get('/doc', (req, res) => {
   res.json(openApiSpecs);
 });

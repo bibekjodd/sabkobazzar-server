@@ -113,6 +113,8 @@ export const queryAuctionsSchema = z
     return true;
   }, 'Invalid cursor');
 
+export const cancelAuctionSchema = z.object({ cancelReason: z.string().optional() });
+
 export const placeBidSchema = z.object({
   amount: z
     .number()

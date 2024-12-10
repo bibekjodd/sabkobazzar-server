@@ -21,28 +21,28 @@ export const getNotifications = handleAsync<
         eq(notifications.userId, req.user.id),
         cursor && sort === 'desc'
           ? or(
-              lt(notifications.receivedAt, cursor.value),
-              and(eq(notifications.receivedAt, cursor.value), lt(notifications.id, cursor.id))
+              lt(notifications.createdAt, cursor.value),
+              and(eq(notifications.createdAt, cursor.value), lt(notifications.id, cursor.id))
             )
           : undefined,
         cursor && sort === 'asc'
           ? or(
-              gt(notifications.receivedAt, cursor.value),
-              and(eq(notifications.receivedAt, cursor.value), gt(notifications.id, cursor.id))
+              gt(notifications.createdAt, cursor.value),
+              and(eq(notifications.createdAt, cursor.value), gt(notifications.id, cursor.id))
             )
           : undefined
       )
     )
     .orderBy((t) => {
-      if (sort === 'asc') return [asc(t.receivedAt), asc(t.id)];
-      return [desc(t.receivedAt), desc(t.id)];
+      if (sort === 'asc') return [asc(t.createdAt), asc(t.id)];
+      return [desc(t.createdAt), desc(t.id)];
     })
     .limit(limit);
 
   const lastResult = result[result.length - 1];
   let cursorResponse: string | undefined = undefined;
   if (lastResult) {
-    cursorResponse = encodeCursor({ id: lastResult.id, value: lastResult.receivedAt });
+    cursorResponse = encodeCursor({ id: lastResult.id, value: lastResult.createdAt });
   }
 
   return res.json({ cursor: cursorResponse, notifications: result });
@@ -55,7 +55,7 @@ export const readNotifications = handleAsync<unknown, { message: string }>(async
   await db
     .select({ id: notifications.id })
     .from(notifications)
-    .where(and(eq(notifications.userId, req.user.id), gt(notifications.receivedAt, currentDate)))
+    .where(and(eq(notifications.userId, req.user.id), gt(notifications.createdAt, currentDate)))
     .execute()
     .then((result) => {
       db.update(users)

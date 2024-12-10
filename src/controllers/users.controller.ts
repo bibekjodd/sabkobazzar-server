@@ -26,7 +26,7 @@ export const updateProfile = handleAsync<unknown, { user: User }>(async (req, re
     .where(
       and(
         eq(notifications.userId, req.user.id),
-        gt(notifications.receivedAt, req.user.lastNotificationReadAt)
+        gt(notifications.createdAt, req.user.lastNotificationReadAt)
       )
     )
     .execute()

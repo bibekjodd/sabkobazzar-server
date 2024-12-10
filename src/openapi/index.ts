@@ -4,6 +4,7 @@ import { createDocument } from 'zod-openapi';
 import { auctionsDoc } from './auctions.doc';
 import { authDoc } from './auth.doc';
 import { eventsDoc } from './events.doc';
+import { feedbacksDoc } from './feedbacks.doc';
 import { notificationsDoc } from './notifications.doc';
 import { statsDoc } from './stats.doc';
 import { usersDoc } from './users.doc';
@@ -35,7 +36,8 @@ export const openApiSpecs = createDocument({
     ...auctionsDoc,
     ...notificationsDoc,
     ...eventsDoc,
-    ...statsDoc
+    ...statsDoc,
+    ...feedbacksDoc
   },
   components: {
     securitySchemes: {

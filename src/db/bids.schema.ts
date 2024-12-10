@@ -1,6 +1,6 @@
 import { createId } from '@paralleldrive/cuid2';
 import { getTableColumns } from 'drizzle-orm';
-import { foreignKey, index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { foreignKey, index, primaryKey, sqliteTable } from 'drizzle-orm/sqlite-core';
 import { createSelectSchema } from 'drizzle-zod';
 import { z } from 'zod';
 import { auctions } from './auctions.schema';
@@ -8,36 +8,36 @@ import { responseUserSchema, users } from './users.schema';
 
 export const bids = sqliteTable(
   'bids',
-  {
-    id: text('id').notNull().$defaultFn(createId),
-    auctionId: text('auction_id').notNull(),
-    bidderId: text('bidder_id').notNull(),
-    at: text('at')
+  (t) => ({
+    id: t.text('id').notNull().$defaultFn(createId),
+    auctionId: t.text('auction_id').notNull(),
+    bidderId: t.text('bidder_id').notNull(),
+    createdAt: t
+      .text('created_at')
       .notNull()
       .$defaultFn(() => new Date().toISOString()),
-    amount: integer('amount').notNull()
-  },
-  function constraints(bids) {
-    return {
-      primaryKey: primaryKey({ name: 'bids_pkey', columns: [bids.id] }),
-      auctionReference: foreignKey({
-        name: 'fk_auction_id',
-        columns: [bids.auctionId],
-        foreignColumns: [auctions.id]
-      })
-        .onUpdate('cascade')
-        .onDelete('cascade'),
-      bidderReference: foreignKey({
-        name: 'fk_bidder_id',
-        columns: [bids.bidderId],
-        foreignColumns: [users.id]
-      })
-        .onDelete('cascade')
-        .onUpdate('cascade'),
-      indexAuction: index('idx_auction_id_bids').on(bids.auctionId),
-      indexBidAt: index('idx_at_bids').on(bids.at)
-    };
-  }
+    amount: t.integer('amount').notNull()
+  }),
+
+  (bids) => [
+    primaryKey({ name: 'bids_pkey', columns: [bids.id] }),
+    foreignKey({
+      name: 'fk_auction_id',
+      columns: [bids.auctionId],
+      foreignColumns: [auctions.id]
+    })
+      .onUpdate('cascade')
+      .onDelete('cascade'),
+    foreignKey({
+      name: 'fk_bidder_id',
+      columns: [bids.bidderId],
+      foreignColumns: [users.id]
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
+    index('idx_auction_id_bids').on(bids.auctionId),
+    index('idx_created_at_bids').on(bids.createdAt)
+  ]
 );
 
 export type Bid = typeof bids.$inferSelect;

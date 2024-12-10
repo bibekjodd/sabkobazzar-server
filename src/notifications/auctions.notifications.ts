@@ -18,7 +18,7 @@ export const registerAuctionNotification = async ({
     startsAt: string;
   };
 }) => {
-  const title = `Product registered for the auction`;
+  const title = `Auction registered successfully`;
   const description = `Auction - ${auction.title} is scheduled for ${formatDate(auction.startsAt)}`;
   const message = `Hey ${user.name}, ${description}`;
 
