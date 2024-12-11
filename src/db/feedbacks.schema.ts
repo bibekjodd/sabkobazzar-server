@@ -1,6 +1,6 @@
 import { createId } from '@paralleldrive/cuid2';
 import { getTableColumns } from 'drizzle-orm';
-import { index, primaryKey, sqliteTable } from 'drizzle-orm/sqlite-core';
+import { foreignKey, index, primaryKey, sqliteTable } from 'drizzle-orm/sqlite-core';
 import { createSelectSchema } from 'drizzle-zod';
 import { z } from 'zod';
 import { responseUserSchema, users } from './users.schema';
@@ -19,6 +19,7 @@ export const feedbacks = sqliteTable(
   }),
   (feedbacks) => [
     primaryKey({ name: 'feedbacks_pkey', columns: [feedbacks.id] }),
+    foreignKey({ name: 'fk_user_id', columns: [feedbacks.userId], foreignColumns: [users.id] }),
     index('idx_user_id_feedbacks').on(users.id)
   ]
 );

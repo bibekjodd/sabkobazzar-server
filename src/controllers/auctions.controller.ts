@@ -24,15 +24,15 @@ import {
 import { encodeCursor, formatPrice } from '@/lib/utils';
 import { handleAsync } from '@/middlewares/handle-async';
 import {
-  auctionParticipantNotification,
-  cancelAuctionNotifications,
-  registerAuctionNotification
-} from '@/notifications/auctions.notifications';
-import {
   findAuctionDetails,
   findAuctionParticipants,
   inviteParticipantToAuction
 } from '@/services/auctions.services';
+import {
+  auctionParticipantNotification,
+  cancelAuctionNotifications,
+  registerAuctionNotification
+} from '@/services/notifications.service';
 import {
   and,
   asc,

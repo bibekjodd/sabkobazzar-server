@@ -6,6 +6,7 @@ import { authDoc } from './auth.doc';
 import { eventsDoc } from './events.doc';
 import { feedbacksDoc } from './feedbacks.doc';
 import { notificationsDoc } from './notifications.doc';
+import { reportsDoc } from './reports.doc';
 import { statsDoc } from './stats.doc';
 import { usersDoc } from './users.doc';
 
@@ -37,7 +38,8 @@ export const openApiSpecs = createDocument({
     ...notificationsDoc,
     ...eventsDoc,
     ...statsDoc,
-    ...feedbacksDoc
+    ...feedbacksDoc,
+    ...reportsDoc
   },
   components: {
     securitySchemes: {
