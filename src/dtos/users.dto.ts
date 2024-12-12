@@ -28,3 +28,7 @@ export const queryUsersSchema = z.object({
   limit: z.preprocess((val) => Number(val) || undefined, z.number().min(1).max(20).default(20)),
   page: z.preprocess((val) => Number(val) || undefined, z.number().min(1).default(1))
 });
+
+export const verifyUserSchema = z.object({
+  otp: z.string({ required_error: 'Invalid otp' }).length(6, 'Invalid otp')
+});
