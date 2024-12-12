@@ -1,9 +1,24 @@
-import { logout } from '@/controllers/auth.controller';
+import { logout, registerUser } from '@/controllers/auth.controller';
+import { loginUserSchema } from '@/dtos/auth.dto';
+import { handleAsync } from '@/middlewares/handle-async';
 import { Router } from 'express';
 import passport from 'passport';
 
 const router = Router();
 export const authRoute = router;
+
+router.post('/register', registerUser);
+router.post(
+  '/login',
+  (req, res, next) => {
+    loginUserSchema.parse(req.body);
+    next();
+  },
+  passport.authenticate('local'),
+  handleAsync(async (req, res) => {
+    return res.json({ user: req.user });
+  })
+);
 
 router.get(
   '/login/google',

@@ -1,7 +1,47 @@
+import { selectUserSchema } from '@/db/users.schema';
+import { loginUserSchema, registerUserSchema } from '@/dtos/auth.dto';
+import { z } from 'zod';
 import { ZodOpenApiPathsObject } from 'zod-openapi';
 
 const tags = ['Auth'];
+
 export const authDoc: ZodOpenApiPathsObject = {
+  '/api/auth/register': {
+    post: {
+      tags,
+      summary: 'Register with credentials',
+      requestBody: { content: { 'application/json': { schema: registerUserSchema } } },
+      responses: {
+        201: {
+          description: 'Registered account successfully',
+          content: {
+            'application/json': {
+              schema: z.object({ user: selectUserSchema.omit({ password: true }) })
+            }
+          }
+        },
+        400: { description: 'Invalid register data or user with same email already exists' }
+      }
+    }
+  },
+  '/api/auth/login': {
+    post: {
+      tags,
+      summary: 'Login with credentials',
+      requestBody: { content: { 'application/json': { schema: loginUserSchema } } },
+      responses: {
+        200: {
+          description: 'Logged in successfully',
+          content: {
+            'application/json': {
+              schema: z.object({ user: selectUserSchema.omit({ password: true }) })
+            }
+          }
+        },
+        400: { description: 'Invalid login credentials' }
+      }
+    }
+  },
   '/api/auth/login/google': {
     get: {
       tags,

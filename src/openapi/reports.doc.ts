@@ -1,5 +1,5 @@
 import { responseReportSchema } from '@/db/reports.schema';
-import { queryReportsSchema } from '@/dtos/reports.dto';
+import { postReportSchema, queryReportsSchema } from '@/dtos/reports.dto';
 import { z } from 'zod';
 import { ZodOpenApiPathsObject } from 'zod-openapi';
 
@@ -13,6 +13,7 @@ export const reportsDoc: ZodOpenApiPathsObject = {
       requestParams: {
         path: z.object({ id: z.string() })
       },
+      requestBody: { content: { 'application/json': { schema: postReportSchema } } },
       responses: {
         201: { description: 'Report posted successfully' },
         401: { description: 'User is not authorized' },

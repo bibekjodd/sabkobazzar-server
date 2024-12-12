@@ -2,8 +2,9 @@ import { decodeCursor } from '@/lib/utils';
 import { z } from 'zod';
 
 export const postFeedbackSchema = z.object({
+  title: z.string().trim().max(100),
   rating: z.number().min(1).max(5),
-  text: z.string().trim().max(200, 'Too long feedback text')
+  text: z.string().trim().max(200, 'Too long feedback text').optional()
 });
 
 export const queryFeedbacksSchema = z.object({

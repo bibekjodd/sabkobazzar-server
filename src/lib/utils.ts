@@ -1,4 +1,5 @@
 import { env } from '@/config/env.config';
+import bcrypt from 'bcryptjs';
 import dayjs from 'dayjs';
 import { BadRequestException } from './exceptions';
 
@@ -42,3 +43,6 @@ export const decodeCursor = <Result = Record<string, unknown>>(val: string): Res
     throw new BadRequestException('Invalid cursor');
   }
 };
+
+export const hashPassword = (password: string) => bcrypt.hash(password, 10);
+export const comparePassword = (password: string, hash: string) => bcrypt.compare(password, hash);

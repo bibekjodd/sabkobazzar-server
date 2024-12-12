@@ -11,8 +11,8 @@ export const postFeedback = handleAsync(async (req, res) => {
   if (!req.user) throw new UnauthorizedException();
   if (req.user.role === 'admin') throw new ForbiddenException("Admins can't post feedback");
 
-  const { rating, text } = postFeedbackSchema.parse(req.body);
-  await db.insert(feedbacks).values({ rating, text, userId: req.user.id });
+  const data = postFeedbackSchema.parse(req.body);
+  await db.insert(feedbacks).values({ ...data, userId: req.user.id });
 
   return res.status(201).json({ message: 'Feedback posted successfully' });
 });

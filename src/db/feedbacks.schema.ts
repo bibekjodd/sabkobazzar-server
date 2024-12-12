@@ -9,6 +9,7 @@ export const feedbacks = sqliteTable(
   'feedbacks',
   (t) => ({
     id: t.text().notNull().$defaultFn(createId),
+    title: t.text({ length: 100 }).notNull(),
     text: t.text({ length: 200 }),
     rating: t.integer().notNull(),
     userId: t.text('user_id').notNull(),

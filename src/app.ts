@@ -12,6 +12,7 @@ import { handleErrorRequest } from './middlewares/handle-error-request';
 import { handleSessionRegenerate } from './middlewares/handle-session-regenerate';
 import { openApiSpecs, serveApiReference } from './openapi';
 import { GoogleStrategy } from './passport/google.strategy';
+import { LocalStrategy } from './passport/local.strategy';
 import { serializer } from './passport/serializer';
 import { auctionsRoute } from './routes/auctions.route';
 import { authRoute } from './routes/auth.route';
@@ -37,6 +38,7 @@ app.use(passport.initialize());
 app.use(passport.session());
 
 passport.use('google', GoogleStrategy);
+passport.use('local', LocalStrategy);
 serializer();
 
 app.get(

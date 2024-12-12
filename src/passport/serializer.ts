@@ -14,6 +14,7 @@ export const serializer = () => {
         .set({ lastOnline: new Date().toISOString() })
         .where(eq(users.id, id))
         .returning();
+      if (user) user.password = null;
       return done(null, user || null);
     } catch (error) {
       return done(error, null);

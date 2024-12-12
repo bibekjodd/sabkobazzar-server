@@ -1,6 +1,6 @@
 import { db } from '@/db';
 import { notifications } from '@/db/notifications.schema';
-import { ResponseUser, User, users } from '@/db/users.schema';
+import { ResponseUser, selectUserSnapshot, User, users } from '@/db/users.schema';
 import { queryUsersSchema, updateProfileSchema } from '@/dtos/users.dto';
 import { NotFoundException, UnauthorizedException } from '@/lib/exceptions';
 import { handleAsync } from '@/middlewares/handle-async';
@@ -37,7 +37,10 @@ export const updateProfile = handleAsync<unknown, { user: User }>(async (req, re
 export const getUserDetails = handleAsync<{ id: string }, { user: ResponseUser }>(
   async (req, res) => {
     const userId = req.params.id;
-    const [user] = await db.select().from(users).where(eq(users.id, userId));
+    const [user] = await db
+      .select({ ...selectUserSnapshot })
+      .from(users)
+      .where(eq(users.id, userId));
     if (!user) throw new NotFoundException('User not found');
     return res.json({ user });
   }
