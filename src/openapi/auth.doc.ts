@@ -1,5 +1,6 @@
 import { selectUserSchema } from '@/db/users.schema';
 import { loginUserSchema, registerUserSchema } from '@/dtos/auth.dto';
+import { forgotPasswordSchema, resetPasswordSchema, updatePasswordSchema } from '@/dtos/users.dto';
 import { z } from 'zod';
 import { ZodOpenApiPathsObject } from 'zod-openapi';
 
@@ -60,6 +61,46 @@ export const authDoc: ZodOpenApiPathsObject = {
       responses: {
         200: { description: 'Logged out successfully' },
         401: { description: 'Unauthorized - Already logged out' }
+      }
+    }
+  },
+  '/api/auth/password': {
+    put: {
+      tags,
+      summary: 'Update password',
+      requestBody: { content: { 'application/json': { schema: updatePasswordSchema } } },
+      responses: {
+        200: { description: 'Password updated successfully' },
+        400: { description: 'Invalid password provided or user is logged from social account' },
+        401: { description: 'User is not authorized' }
+      }
+    }
+  },
+  '/api/auth/password/forgot': {
+    put: {
+      tags,
+      summary: 'Forgot password',
+      requestBody: { content: { 'application/json': { schema: forgotPasswordSchema } } },
+      responses: {
+        200: { description: 'Password reset otp sent to mail' },
+        400: {
+          description:
+            'User with the given email does not exist or user is logged in from social account or otp is already sent to mail'
+        }
+      }
+    }
+  },
+  '/api/auth/password/reset': {
+    put: {
+      tags,
+      summary: 'Reset password',
+      requestBody: { content: { 'application/json': { schema: resetPasswordSchema } } },
+      responses: {
+        200: { description: 'Password reset successfully' },
+        400: {
+          description:
+            'User with the provided email does not exist or otp invalid or user is logged in from social account'
+        }
       }
     }
   }

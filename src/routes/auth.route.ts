@@ -1,4 +1,10 @@
-import { logout, registerUser } from '@/controllers/auth.controller';
+import {
+  forgotPassword,
+  logout,
+  registerUser,
+  resetPassword,
+  updatePassword
+} from '@/controllers/auth.controller';
 import { loginUserSchema } from '@/dtos/auth.dto';
 import { handleAsync } from '@/middlewares/handle-async';
 import { Router } from 'express';
@@ -38,5 +44,9 @@ router.get('/callback/google', passport.authenticate('google'), (req, res) => {
   delete req.session.redirectTo;
   return res.redirect(redirectUrl || '/');
 });
+
+router.put('/password', updatePassword);
+router.put('/password/forgot', forgotPassword);
+router.put('/password/reset', resetPassword);
 
 router.route('/logout').get(logout).post(logout);

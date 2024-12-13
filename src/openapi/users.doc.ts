@@ -78,8 +78,8 @@ export const usersDoc: ZodOpenApiPathsObject = {
       }
     }
   },
-  '/api/users/request-otp': {
-    put: {
+  '/api/users/verify': {
+    get: {
       tags,
       summary: 'Request verification otp',
       responses: {
@@ -87,9 +87,7 @@ export const usersDoc: ZodOpenApiPathsObject = {
         400: { description: 'User is already verified' },
         401: { description: 'User is not authorized' }
       }
-    }
-  },
-  '/api/users/verify': {
+    },
     put: {
       tags,
       summary: 'Verify account from otp',

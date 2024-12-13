@@ -6,8 +6,8 @@ import { queryUsersSchema, updateProfileSchema, verifyUserSchema } from '@/dtos/
 import { MILLIS } from '@/lib/constants';
 import { BadRequestException, NotFoundException, UnauthorizedException } from '@/lib/exceptions';
 import { sendMail } from '@/lib/send-mail';
+import { generateOtp } from '@/lib/utils';
 import { handleAsync } from '@/middlewares/handle-async';
-import { randomInt } from 'crypto';
 import { and, desc, eq, gt, like, ne, or } from 'drizzle-orm';
 
 export const getProfile = handleAsync<unknown, { user: User }>(async (req, res) => {
@@ -69,15 +69,19 @@ export const queryUsers = handleAsync<unknown, { users: ResponseUser[] }>(async 
   return res.json({ users: result });
 });
 
-export const requestOtp = handleAsync(async (req, res) => {
+export const requestAccountVerificationOtp = handleAsync(async (req, res) => {
   if (!req.user) throw new UnauthorizedException();
   if (req.user.isVerified) throw new BadRequestException('User is already verified');
 
-  const [currentOtp] = await db.select().from(otps).where(eq(otps.userId, req.user.id));
-  if (currentOtp && currentOtp.createdAt > new Date(Date.now() - MILLIS.MINUTE).toISOString())
+  const [currentOtp] = await db
+    .select()
+    .from(otps)
+    .where(and(eq(otps.userId, req.user.id), eq(otps.type, 'account-verification')));
+
+  if (currentOtp && currentOtp.expiresAt > new Date().toISOString())
     throw new BadRequestException('Otp is already sent to your mail');
 
-  const otp = randomInt(100_000, 999_999).toString();
+  const otp = generateOtp();
 
   sendMail({
     mail: req.user.email,
@@ -86,12 +90,18 @@ export const requestOtp = handleAsync(async (req, res) => {
   });
   await db
     .insert(otps)
-    .values({ otp, userId: req.user.id })
+    .values({
+      otp,
+      userId: req.user.id,
+      expiresAt: new Date(Date.now() + MILLIS.MINUTE).toISOString(),
+      type: 'account-verification'
+    })
     .onConflictDoUpdate({
-      target: [otps.userId],
+      target: [otps.userId, otps.type],
       set: {
         otp,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + MILLIS.MINUTE).toISOString()
       }
     });
 
@@ -104,16 +114,15 @@ export const verifyUser = handleAsync(async (req, res) => {
   const { otp } = verifyUserSchema.parse(req.body);
 
   const [currentOtp] = await db.select().from(otps).where(eq(otps.userId, req.user.id)).limit(1);
-  if (
-    !currentOtp ||
-    currentOtp.otp !== otp ||
-    new Date(Date.now() - MILLIS.MINUTE).toISOString() > currentOtp.createdAt
-  )
+  if (!currentOtp || currentOtp.otp !== otp || currentOtp.expiresAt < new Date().toISOString())
     throw new BadRequestException('Invalid otp');
 
   await Promise.all([
     db.update(users).set({ isVerified: true }).where(eq(users.id, req.user.id)).execute(),
-    db.delete(otps).where(eq(otps.userId, req.user.id)).execute()
+    db
+      .delete(otps)
+      .where(and(eq(otps.userId, req.user.id), eq(otps.type, 'account-verification')))
+      .execute()
   ]);
 
   return res.json({ message: 'User verified successfully' });

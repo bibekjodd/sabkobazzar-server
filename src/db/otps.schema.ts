@@ -9,10 +9,12 @@ export const otps = sqliteTable(
     createdAt: t
       .text('created_at')
       .notNull()
-      .$defaultFn(() => new Date().toISOString())
+      .$defaultFn(() => new Date().toISOString()),
+    expiresAt: t.text('expires_at').notNull(),
+    type: t.text({ enum: ['account-verification', 'reset-password'] }).notNull()
   }),
   (otps) => [
-    primaryKey({ name: 'otps_pkey', columns: [otps.userId] }),
+    primaryKey({ name: 'otps_pkey', columns: [otps.userId, otps.type] }),
     foreignKey({ name: 'fk_user_id', columns: [otps.userId], foreignColumns: [users.id] })
   ]
 );
