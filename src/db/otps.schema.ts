@@ -11,7 +11,7 @@ export const otps = sqliteTable(
       .notNull()
       .$defaultFn(() => new Date().toISOString()),
     expiresAt: t.text('expires_at').notNull(),
-    type: t.text({ enum: ['account-verification', 'reset-password'] }).notNull()
+    type: t.text({ enum: ['account-verification', 'login'] }).notNull()
   }),
   (otps) => [
     primaryKey({ name: 'otps_pkey', columns: [otps.userId, otps.type] }),

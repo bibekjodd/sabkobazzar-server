@@ -7,12 +7,16 @@ import { MILLIS } from '@/lib/constants';
 import {
   BadRequestException,
   ForbiddenException,
+  InternalServerException,
   NotFoundException,
   UnauthorizedException
 } from '@/lib/exceptions';
 import { encodeCursor } from '@/lib/utils';
 import { handleAsync } from '@/middlewares/handle-async';
-import { reportRespondedNotification } from '@/services/notifications.service';
+import {
+  reportPostedNotification,
+  reportRespondedNotification
+} from '@/services/notifications.service';
 import { and, asc, desc, eq, gt, gte, isNotNull, isNull, lt, lte, or, SQL } from 'drizzle-orm';
 
 export const postReport = handleAsync<{ id: string }>(async (req, res) => {
@@ -22,7 +26,7 @@ export const postReport = handleAsync<{ id: string }>(async (req, res) => {
   const auctionId = req.params.id;
 
   const auctionPromise = db
-    .select({ ownerId: auctions.ownerId })
+    .select({ ownerId: auctions.ownerId, title: auctions.title, id: auctions.id })
     .from(auctions)
     .where(eq(auctions.id, auctionId))
     .execute()
@@ -49,10 +53,41 @@ export const postReport = handleAsync<{ id: string }>(async (req, res) => {
     throw new ForbiddenException("You can't report your auction by self");
 
   const data = postReportSchema.parse(req.body);
-  await db.insert(reports).values({ ...data, auctionId, userId: req.user.id });
+  const [report] = await db
+    .insert(reports)
+    .values({ ...data, auctionId, userId: req.user.id })
+    .returning();
+  if (!report) throw new InternalServerException();
+
+  await reportPostedNotification({
+    auction,
+    report,
+    user: req.user
+  });
 
   return res.status(201).json({ message: 'Reported auction successfully' });
 });
+
+export const getReportDetails = handleAsync<{ id: string }, { report: ResponseReport }>(
+  async (req, res) => {
+    const reportId = req.params.id;
+    if (!req.user) throw new UnauthorizedException();
+
+    const [report] = await db
+      .select({ ...selectReportsSnapshot, user: selectUserSnapshot })
+      .from(reports)
+      .innerJoin(users, eq(reports.userId, users.id))
+      .where(
+        and(
+          eq(reports.id, reportId),
+          req.user.role !== 'admin' ? eq(reports.userId, req.user.id) : undefined
+        )
+      );
+    if (!report) throw new NotFoundException('Report does not exist');
+
+    return res.json({ report });
+  }
+);
 
 export const respondToReport = handleAsync<{ id: string }>(async (req, res) => {
   if (!req.user) throw new UnauthorizedException();
@@ -85,7 +120,11 @@ export const respondToReport = handleAsync<{ id: string }>(async (req, res) => {
 
   await Promise.all([
     db.update(reports).set({ response }).where(eq(reports.id, reportId)),
-    reportRespondedNotification({ auction: report.auction, user: report.user })
+    reportRespondedNotification({
+      auction: report.auction,
+      user: report.user,
+      report: { id: reportId }
+    })
   ]);
 
   return res.json({ message: 'Report responded successfully' });

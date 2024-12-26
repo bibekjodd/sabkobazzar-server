@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { imageSchema } from './users.dto';
 
 export const postReportSchema = z.object({
-  title: z.string().trim().max(100, 'Too long report title'),
+  title: z.string().min(10, 'Too short report title').trim().max(100, 'Too long report title'),
   text: z.string().trim().max(1000, 'Too long report description').optional(),
   images: z.array(imageSchema).max(3, "Can't post more than 3 images").optional()
 });

@@ -25,28 +25,12 @@ export const updateProfileSchema = z
 
 export const queryUsersSchema = z.object({
   q: z.string().optional(),
+  email: z.string().email().optional(),
   limit: z.preprocess((val) => Number(val) || undefined, z.number().min(1).max(20).default(20)),
-  page: z.preprocess((val) => Number(val) || undefined, z.number().min(1).default(1))
+  page: z.preprocess((val) => Number(val) || undefined, z.number().min(1).default(1)),
+  role: z.enum(['user', 'admin']).optional()
 });
 
-export const verifyUserSchema = z.object({
+export const verifyUserAccountSchema = z.object({
   otp: z.string({ required_error: 'Invalid otp' }).length(6, 'Invalid otp')
-});
-
-export const updatePasswordSchema = z.object({
-  oldPassword: z.string({ required_error: 'Old password is required' }),
-  newPassword: z
-    .string({ required_error: 'New password is required' })
-    .min(6, 'Password must be at least 6 characters')
-    .max(20, "Passwords can't exceed 20 characters")
-});
-
-export const forgotPasswordSchema = z.object({ email: z.string().email() });
-export const resetPasswordSchema = z.object({
-  email: z.string().email(),
-  otp: z.string({ required_error: 'Invalid otp' }).length(6, 'Invalid otp'),
-  password: z
-    .string()
-    .min(6, 'Password must be at least 6 characters')
-    .max(20, "Password can't exceed 20 characters")
 });

@@ -1,6 +1,11 @@
 import { selectUserSchema } from '@/db/users.schema';
-import { loginUserSchema, registerUserSchema } from '@/dtos/auth.dto';
-import { forgotPasswordSchema, resetPasswordSchema, updatePasswordSchema } from '@/dtos/users.dto';
+import {
+  loginUserSchema,
+  loginWithOtpSchema,
+  registerUserSchema,
+  requestOtpLoginSchema,
+  updatePasswordSchema
+} from '@/dtos/auth.dto';
 import { z } from 'zod';
 import { ZodOpenApiPathsObject } from 'zod-openapi';
 
@@ -76,31 +81,28 @@ export const authDoc: ZodOpenApiPathsObject = {
       }
     }
   },
-  '/api/auth/password/forgot': {
-    put: {
+  '/api/auth/otp/request': {
+    post: {
       tags,
-      summary: 'Forgot password',
-      requestBody: { content: { 'application/json': { schema: forgotPasswordSchema } } },
+      summary: 'Request login otp',
+      requestBody: { content: { 'application/json': { schema: requestOtpLoginSchema } } },
       responses: {
-        200: { description: 'Password reset otp sent to mail' },
-        400: {
-          description:
-            'User with the given email does not exist or user is logged in from social account or otp is already sent to mail'
-        }
+        200: { description: 'Login otp sent to mail successfully' },
+        400: { description: 'Invalid email or user does not use credentials auth' }
       }
     }
   },
-  '/api/auth/password/reset': {
-    put: {
+  '/api/auth/otp/verify': {
+    post: {
       tags,
-      summary: 'Reset password',
-      requestBody: { content: { 'application/json': { schema: resetPasswordSchema } } },
+      summary: 'Login with otp',
+      requestBody: { content: { 'application/json': { schema: loginWithOtpSchema } } },
       responses: {
-        200: { description: 'Password reset successfully' },
-        400: {
-          description:
-            'User with the provided email does not exist or otp invalid or user is logged in from social account'
-        }
+        200: {
+          description: 'Logged in successfully',
+          content: { 'application/json': { schema: z.object({ user: selectUserSchema }) } }
+        },
+        400: { description: 'Invalid otp or otp is expired' }
       }
     }
   }

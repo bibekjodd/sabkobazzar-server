@@ -120,7 +120,7 @@ export const cancelAuction = handleAsync<{ id: string }, { message: string }>(as
   const auctionId = req.params.id;
   const auction = await findAuctionDetails({ auctionId: auctionId, userId: req.user.id });
 
-  const { cancelReason } = cancelAuctionSchema.parse(req.body);
+  const { reason } = cancelAuctionSchema.parse(req.body);
 
   if (auction.status === 'completed' || auction.status === 'unbidded')
     throw new BadRequestException('Auction is already completed');
@@ -131,7 +131,7 @@ export const cancelAuction = handleAsync<{ id: string }, { message: string }>(as
 
   await db
     .update(auctions)
-    .set({ status: 'cancelled', cancelReason })
+    .set({ status: 'cancelled', cancelReason: reason })
     .where(eq(auctions.id, auctionId));
 
   findAuctionParticipants(auction.id).then((result) => {
@@ -147,31 +147,20 @@ export const queryAuctions = handleAsync<
   unknown,
   { cursor: string | undefined; auctions: ResponseAuction[] }
 >(async (req, res) => {
-  const {
-    cursor,
-    limit,
-    owner,
-    sort,
-    condition,
-    from,
-    inviteOnly,
-    status,
-    to,
-    unbidded,
-    title,
-    category
-  } = queryAuctionsSchema.parse(req.query);
+  const query = queryAuctionsSchema.parse(req.query);
+
+  if (query.resource === 'self' && !req.user) throw new UnauthorizedException();
 
   const currentDate = new Date();
   let statusCondition: SQL<unknown> | undefined = undefined;
-  if (status === 'cancelled' || status === 'completed')
-    statusCondition = eq(auctions.status, status);
-  else if (status === 'pending')
+  if (query.status === 'cancelled' || query.status === 'completed')
+    statusCondition = eq(auctions.status, query.status);
+  else if (query.status === 'pending')
     statusCondition = and(
       eq(auctions.status, 'pending'),
       gt(auctions.startsAt, currentDate.toISOString())
     );
-  else if (status === 'live') {
+  else if (query.status === 'live') {
     statusCondition = and(
       ne(auctions.status, 'cancelled'),
       and(
@@ -181,45 +170,42 @@ export const queryAuctions = handleAsync<
     );
   }
 
-  let cursorCondition: SQL<unknown> | undefined = lt(
-    auctions.startsAt,
-    new Date(Date.now() + MILLIS.MONTH).toISOString()
-  );
+  let cursorCondition: SQL<unknown> | undefined = undefined;
 
-  if (sort === 'bid_asc' && cursor)
+  if (query.sort === 'bid_asc' && query.cursor)
     cursorCondition = or(
-      gt(auctions.finalBid, Number(cursor.value)),
-      and(eq(auctions.finalBid, Number(cursor.value)), gt(auctions.id, cursor.id))
+      gt(auctions.finalBid, Number(query.cursor.value)),
+      and(eq(auctions.finalBid, Number(query.cursor.value)), gt(auctions.id, query.cursor.id))
     );
 
-  if (sort === 'bid_desc' && cursor)
+  if (query.sort === 'bid_desc' && query.cursor)
     cursorCondition = or(
-      lt(auctions.finalBid, Number(cursor.value)),
-      and(eq(auctions.finalBid, Number(cursor.value)), lt(auctions.id, cursor.id))
+      lt(auctions.finalBid, Number(query.cursor.value)),
+      and(eq(auctions.finalBid, Number(query.cursor.value)), lt(auctions.id, query.cursor.id))
     );
 
-  if (sort === 'title_asc' && cursor)
+  if (query.sort === 'title_asc' && query.cursor)
     cursorCondition = or(
-      gt(auctions.title, cursor.value),
-      and(eq(auctions.title, cursor.value), gt(auctions.id, cursor.id))
+      gt(auctions.title, query.cursor.value),
+      and(eq(auctions.title, query.cursor.value), gt(auctions.id, query.cursor.id))
     );
 
-  if (sort === 'title_desc' && cursor)
+  if (query.sort === 'title_desc' && query.cursor)
     cursorCondition = or(
-      lt(auctions.title, cursor.value),
-      and(eq(auctions.title, cursor.value), lt(auctions.id, cursor.id))
+      lt(auctions.title, query.cursor.value),
+      and(eq(auctions.title, query.cursor.value), lt(auctions.id, query.cursor.id))
     );
 
-  if (sort === 'starts_at_asc' && cursor)
+  if (query.sort === 'starts_at_asc' && query.cursor)
     cursorCondition = or(
-      gt(auctions.startsAt, cursor.value),
-      and(eq(auctions.startsAt, cursor.value), gt(auctions.id, cursor.id))
+      gt(auctions.startsAt, query.cursor.value),
+      and(eq(auctions.startsAt, query.cursor.value), gt(auctions.id, query.cursor.id))
     );
 
-  if ((sort === 'starts_at_desc' || !sort) && cursor)
+  if ((query.sort === 'starts_at_desc' || !query.sort) && query.cursor)
     cursorCondition = or(
-      lt(auctions.startsAt, cursor.value),
-      and(eq(auctions.startsAt, cursor.value), lt(auctions.id, cursor.id))
+      lt(auctions.startsAt, query.cursor.value),
+      and(eq(auctions.startsAt, query.cursor.value), lt(auctions.id, query.cursor.id))
     );
 
   const participant = alias(participants, 'participant');
@@ -236,20 +222,26 @@ export const queryAuctions = handleAsync<
     .from(auctions)
     .where(
       and(
-        title
-          ? or(like(auctions.title, `%${title}%`), like(auctions.title, auctions.productTitle))
+        query.title
+          ? or(
+              like(auctions.title, `%${query.title}%`),
+              like(auctions.title, auctions.productTitle)
+            )
           : undefined,
-        owner ? eq(auctions.ownerId, owner) : undefined,
-        category ? eq(auctions.category, category) : undefined,
-        from ? gte(auctions.startsAt, from) : undefined,
-        to ? lte(auctions.startsAt, to) : undefined,
-        inviteOnly === true || inviteOnly === false
-          ? eq(auctions.isInviteOnly, inviteOnly)
+        query.owner ? eq(auctions.ownerId, query.owner) : undefined,
+        query.category ? eq(auctions.category, query.category) : undefined,
+        query.from ? gte(auctions.startsAt, query.from) : undefined,
+        query.to ? lte(auctions.startsAt, query.to) : undefined,
+        query.inviteOnly === true || query.inviteOnly === false
+          ? eq(auctions.isInviteOnly, query.inviteOnly)
           : undefined,
-        condition ? eq(auctions.condition, condition) : undefined,
+        query.condition ? eq(auctions.condition, query.condition) : undefined,
         statusCondition,
         cursorCondition,
-        unbidded === true || unbidded === false ? eq(auctions.status, 'unbidded') : undefined
+        query.unbidded === true || query.unbidded === false
+          ? eq(auctions.status, 'unbidded')
+          : undefined,
+        query.resource === 'self' ? eq(auctions.ownerId, req.user?.id || '') : undefined
       )
     )
     .leftJoin(
@@ -267,13 +259,13 @@ export const queryAuctions = handleAsync<
     )
     .leftJoin(winner, eq(auctions.winnerId, winner.id))
     .groupBy(auctions.id)
-    .limit(limit)
+    .limit(query.limit)
     .orderBy((t) => {
-      if (sort === 'bid_asc') return [asc(t.finalBid), asc(t.id)];
-      else if (sort === 'bid_desc') return [desc(t.finalBid), desc(t.id)];
-      else if (sort === 'title_asc') return [asc(t.title), asc(t.id)];
-      else if (sort === 'title_desc') return [desc(t.title), desc(t.id)];
-      else if (sort === 'starts_at_asc') return [asc(t.startsAt), asc(t.id)];
+      if (query.sort === 'bid_asc') return [asc(t.finalBid), asc(t.id)];
+      else if (query.sort === 'bid_desc') return [desc(t.finalBid), desc(t.id)];
+      else if (query.sort === 'title_asc') return [asc(t.title), asc(t.id)];
+      else if (query.sort === 'title_desc') return [desc(t.title), desc(t.id)];
+      else if (query.sort === 'starts_at_asc') return [asc(t.startsAt), asc(t.id)];
       return [desc(t.startsAt), desc(t.id)];
     });
 
@@ -283,16 +275,19 @@ export const queryAuctions = handleAsync<
   }));
 
   const lastResult = finalResult.at(finalResult.length - 1);
-  let responseCursor: string | undefined;
+  let cursor: string | undefined;
   if (lastResult) {
     let cursorValue: unknown = lastResult.startsAt;
-    if (sort === 'starts_at_asc' || sort === 'starts_at_desc') cursorValue = lastResult.startsAt;
-    else if (sort === 'bid_asc' || sort === 'bid_desc') cursorValue = lastResult.finalBid;
-    else if (sort === 'title_asc' || sort === 'title_desc') cursorValue = lastResult.title;
-    responseCursor = encodeCursor({ id: lastResult.id, value: cursorValue });
+    if (query.sort === 'starts_at_asc' || query.sort === 'starts_at_desc')
+      cursorValue = lastResult.startsAt;
+    else if (query.sort === 'bid_asc' || query.sort === 'bid_desc')
+      cursorValue = lastResult.finalBid;
+    else if (query.sort === 'title_asc' || query.sort === 'title_desc')
+      cursorValue = lastResult.title;
+    cursor = encodeCursor({ id: lastResult.id, value: cursorValue });
   }
 
-  return res.json({ cursor: responseCursor, auctions: finalResult });
+  return res.json({ cursor, auctions: finalResult });
 });
 
 export const getAuctionParticipants = handleAsync<{ id: string }, { participants: ResponseUser[] }>(
@@ -514,7 +509,7 @@ export const getBids = handleAsync<
   { cursor: string | undefined; bids: ResponseBid[] }
 >(async (req, res) => {
   const auctionId = req.params.id;
-  const { cursor, limit, sort } = getBidsQuerySchema.parse(req.query);
+  const query = getBidsQuerySchema.parse(req.query);
   const result = await db
     .select({ ...selectBidSnapshot, bidder: selectUserSnapshot })
     .from(bids)
@@ -523,31 +518,31 @@ export const getBids = handleAsync<
     .where(
       and(
         eq(bids.auctionId, auctionId),
-        cursor && sort === 'asc'
+        query.cursor && query.sort === 'asc'
           ? or(
-              gt(bids.createdAt, cursor.value),
-              and(eq(bids.createdAt, cursor.value), gt(bids.id, cursor.id))
+              gt(bids.createdAt, query.cursor.value),
+              and(eq(bids.createdAt, query.cursor.value), gt(bids.id, query.cursor.id))
             )
           : undefined,
-        cursor && sort === 'desc'
+        query.cursor && query.sort === 'desc'
           ? or(
-              lt(bids.createdAt, cursor.value),
-              and(eq(bids.createdAt, cursor.value), lt(bids.id, cursor.id))
+              lt(bids.createdAt, query.cursor.value),
+              and(eq(bids.createdAt, query.cursor.value), lt(bids.id, query.cursor.id))
             )
           : undefined
       )
     )
     .orderBy((t) => {
-      if (sort === 'asc') return [asc(t.createdAt), asc(t.id)];
+      if (query.sort === 'asc') return [asc(t.createdAt), asc(t.id)];
       return [desc(t.createdAt), desc(t.id)];
     })
-    .limit(limit);
+    .limit(query.limit);
 
-  let responseCursor: string | undefined = undefined;
+  let cursor: string | undefined = undefined;
   const lastResult = result[result.length - 1];
-  if (lastResult) responseCursor = encodeCursor({ id: lastResult.id, value: lastResult.createdAt });
+  if (lastResult) cursor = encodeCursor({ id: lastResult.id, value: lastResult.createdAt });
 
-  return res.json({ cursor: responseCursor, bids: result });
+  return res.json({ cursor, bids: result });
 });
 
 export const getBidsSnapshot = handleAsync<{ id: string }, { bids: ResponseBid[] }>(
@@ -588,8 +583,8 @@ export const searchInviteUsers = handleAsync<
   if (!req.user) throw new UnauthorizedException();
   const auctionId = req.params.id;
 
-  const { limit, page, q } = searchInviteUsersSchema.parse(req.query);
-  const offset = (page - 1) * limit;
+  const query = searchInviteUsersSchema.parse(req.query);
+  const offset = (query.page - 1) * query.limit;
   const result = await db
     .select({ ...selectUserSnapshot, status: participants.status })
     .from(users)
@@ -597,11 +592,13 @@ export const searchInviteUsers = handleAsync<
       participants,
       and(eq(participants.auctionId, auctionId), eq(participants.userId, users.id))
     )
-    .limit(limit)
+    .limit(query.limit)
     .offset(offset)
     .where(
       and(
-        q ? or(like(users.name, `%${q}%`), like(users.email, `%${q}%`)) : undefined,
+        query.q
+          ? or(like(users.name, `%${query.q}%`), like(users.email, `%${query.q}%`))
+          : undefined,
         ne(users.id, req.user.id)
       )
     )

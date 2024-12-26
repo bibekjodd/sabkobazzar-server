@@ -1,5 +1,5 @@
 import { selectUserSchema } from '@/db/users.schema';
-import { queryUsersSchema, updateProfileSchema, verifyUserSchema } from '@/dtos/users.dto';
+import { queryUsersSchema, updateProfileSchema, verifyUserAccountSchema } from '@/dtos/users.dto';
 import { z } from 'zod';
 import { ZodOpenApiPathsObject } from 'zod-openapi';
 import 'zod-openapi/extend';
@@ -78,8 +78,8 @@ export const usersDoc: ZodOpenApiPathsObject = {
       }
     }
   },
-  '/api/users/verify': {
-    get: {
+  '/api/users/otp/request': {
+    post: {
       tags,
       summary: 'Request verification otp',
       responses: {
@@ -87,11 +87,13 @@ export const usersDoc: ZodOpenApiPathsObject = {
         400: { description: 'User is already verified' },
         401: { description: 'User is not authorized' }
       }
-    },
-    put: {
+    }
+  },
+  '/api/users/otp/verify': {
+    post: {
       tags,
       summary: 'Verify account from otp',
-      requestBody: { content: { 'application/json': { schema: verifyUserSchema } } },
+      requestBody: { content: { 'application/json': { schema: verifyUserAccountSchema } } },
       responses: {
         200: { description: 'User account verified successfully' },
         400: { description: 'User is already verified or otp is invalid' },

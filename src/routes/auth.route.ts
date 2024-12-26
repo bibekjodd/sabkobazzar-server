@@ -1,8 +1,8 @@
 import {
-  forgotPassword,
+  loginWithOtp,
   logout,
   registerUser,
-  resetPassword,
+  requestLoginOtp,
   updatePassword
 } from '@/controllers/auth.controller';
 import { loginUserSchema } from '@/dtos/auth.dto';
@@ -46,7 +46,6 @@ router.get('/callback/google', passport.authenticate('google'), (req, res) => {
 });
 
 router.put('/password', updatePassword);
-router.put('/password/forgot', forgotPassword);
-router.put('/password/reset', resetPassword);
-
+router.post('/otp/request', requestLoginOtp);
+router.post('/otp/verify', loginWithOtp);
 router.route('/logout').get(logout).post(logout);

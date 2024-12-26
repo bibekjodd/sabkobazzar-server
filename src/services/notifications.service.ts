@@ -138,9 +138,10 @@ export const auctionParticipantNotification = async ({
   });
 };
 
-export const receivedReportNotification = async ({
+export const reportPostedNotification = async ({
   auction,
-  user
+  user,
+  report
 }: {
   user: {
     id: string;
@@ -148,6 +149,7 @@ export const receivedReportNotification = async ({
     email: string;
   };
   auction: { id: string; title: string };
+  report: { id: string };
 }) => {
   const title = `Received your report`;
   const description = `Your report for the auction - ${auction.title} has been received. Wait till further response from the admin`;
@@ -155,18 +157,19 @@ export const receivedReportNotification = async ({
 
   sendMail({ mail: user.email, subject: title, text: message });
   await addNotification({
-    entity: 'auctions',
+    entity: 'reports',
     title,
     description,
-    params: auction.id,
-    type: 'report',
+    params: report.id,
+    type: 'post',
     userId: user.id
   });
 };
 
 export const reportRespondedNotification = async ({
   user,
-  auction
+  auction,
+  report
 }: {
   user: {
     id: string;
@@ -174,6 +177,7 @@ export const reportRespondedNotification = async ({
     email: string;
   };
   auction: { id: string; title: string };
+  report: { id: string };
 }) => {
   const title = 'Report acknowledged';
   const description = `Your report for the auction - ${auction.title} has got a response`;
@@ -181,11 +185,11 @@ export const reportRespondedNotification = async ({
 
   sendMail({ mail: user.email, subject: title, text: message });
   await addNotification({
-    entity: 'auctions',
+    entity: 'reports',
     title,
     description,
     userId: user.id,
-    params: auction.id,
-    type: 'report-acknowledge'
+    params: report.id,
+    type: 'response'
   });
 };

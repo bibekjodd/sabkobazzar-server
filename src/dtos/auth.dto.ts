@@ -25,3 +25,16 @@ export const registerUserSchema = loginUserSchema.extend({
     .optional(),
   image: imageSchema.optional()
 });
+
+export const requestOtpLoginSchema = z.object({ email: z.string().email() });
+export const loginWithOtpSchema = z.object({
+  otp: z.string().length(6, 'Invalid otp'),
+  email: z.string().email()
+});
+
+export const updatePasswordSchema = z.object({
+  password: z
+    .string({ required_error: 'Password is required' })
+    .min(6, 'Password must be at least 6 characters')
+    .max(20, "Passwords can't exceed 20 characters")
+});

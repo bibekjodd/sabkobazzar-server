@@ -2,6 +2,7 @@ import { responseAuctionSchema } from '@/db/auctions.schema';
 import { responseBidSchema } from '@/db/bids.schema';
 import { responseUserSchema } from '@/db/users.schema';
 import {
+  cancelAuctionSchema,
   getBidsQuerySchema,
   placeBidSchema,
   queryAuctionsSchema,
@@ -81,6 +82,9 @@ export const auctionsDoc: ZodOpenApiPathsObject = {
       summary: 'Cancel auction',
       requestParams: {
         path: z.object({ id: z.string() }).openapi({ description: 'Auction id' })
+      },
+      requestBody: {
+        content: { 'application/json': { schema: cancelAuctionSchema } }
       },
       responses: {
         200: { description: 'Auction cancelled successfully' },
@@ -263,7 +267,7 @@ export const auctionsDoc: ZodOpenApiPathsObject = {
     }
   },
 
-  '/api/auctions/:id/interested': {
+  '/api/auctions/{id}/interested': {
     post: {
       tags,
       summary: 'Set Auction as interested',

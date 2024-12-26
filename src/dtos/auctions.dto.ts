@@ -105,7 +105,8 @@ export const queryAuctionsSchema = z
     unbidded: z.preprocess(
       (val) => (val === 'true' ? true : val === 'false' ? false : undefined),
       z.boolean().optional()
-    )
+    ),
+    resource: z.enum(['self']).optional()
   })
   .refine(({ cursor, sort }) => {
     if (!cursor?.value) return true;
@@ -113,7 +114,9 @@ export const queryAuctionsSchema = z
     return true;
   }, 'Invalid cursor');
 
-export const cancelAuctionSchema = z.object({ cancelReason: z.string().optional() });
+export const cancelAuctionSchema = z.object({
+  reason: z.string().trim().max(200, "Cancel reason can't exceed 200 characters").optional()
+});
 
 export const placeBidSchema = z.object({
   amount: z

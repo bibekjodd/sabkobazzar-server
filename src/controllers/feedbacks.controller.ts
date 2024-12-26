@@ -24,18 +24,18 @@ export const getFeedbacks = handleAsync<
   if (!req.user) throw new UnauthorizedException();
   if (req.user.role !== 'admin') throw new ForbiddenException('Only admins can access feedbacks');
 
-  const { sort, cursor, from, rating, to, limit } = queryFeedbacksSchema.parse(req.query);
+  const query = queryFeedbacksSchema.parse(req.query);
 
   let cursorCondition: SQL<unknown> | undefined = lt(feedbacks.createdAt, new Date().toISOString());
-  if (cursor && sort === 'asc')
+  if (query.cursor && query.sort === 'asc')
     cursorCondition = or(
-      gt(feedbacks.createdAt, cursor.value),
-      and(eq(feedbacks.createdAt, cursor.value), gt(feedbacks.id, cursor.id))
+      gt(feedbacks.createdAt, query.cursor.value),
+      and(eq(feedbacks.createdAt, query.cursor.value), gt(feedbacks.id, query.cursor.id))
     );
-  if (cursor && sort === 'desc')
+  if (query.cursor && query.sort === 'desc')
     cursorCondition = or(
-      lt(feedbacks.createdAt, cursor.value),
-      and(eq(feedbacks.createdAt, cursor.value), lt(feedbacks.id, cursor.id))
+      lt(feedbacks.createdAt, query.cursor.value),
+      and(eq(feedbacks.createdAt, query.cursor.value), lt(feedbacks.id, query.cursor.id))
     );
 
   const result = await db
@@ -45,26 +45,26 @@ export const getFeedbacks = handleAsync<
     .where(
       and(
         cursorCondition,
-        rating ? eq(feedbacks.rating, rating) : undefined,
-        from ? gte(feedbacks.createdAt, from) : undefined,
-        to ? lte(feedbacks.createdAt, to) : undefined
+        query.rating ? eq(feedbacks.rating, query.rating) : undefined,
+        query.from ? gte(feedbacks.createdAt, query.from) : undefined,
+        query.to ? lte(feedbacks.createdAt, query.to) : undefined
       )
     )
-    .limit(limit)
+    .limit(query.limit)
     .orderBy((t) => {
-      if (sort === 'asc') return [asc(t.createdAt), asc(t.id)];
+      if (query.sort === 'asc') return [asc(t.createdAt), asc(t.id)];
       return [desc(t.createdAt), desc(t.id)];
     })
     .groupBy(feedbacks.id);
 
   const lastResult = result[result.length - 1];
-  let cursorResponse: string | undefined = undefined;
+  let cursor: string | undefined = undefined;
   if (lastResult) {
-    cursorResponse = encodeCursor({ id: lastResult.id, value: lastResult.createdAt });
+    cursor = encodeCursor({ id: lastResult.id, value: lastResult.createdAt });
   }
 
   return res.json({
-    cursor: cursorResponse,
+    cursor,
     feedbacks: result
   });
 });

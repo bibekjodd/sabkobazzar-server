@@ -6,7 +6,7 @@ import { ZodOpenApiPathsObject } from 'zod-openapi';
 const tags = ['Report'];
 
 export const reportsDoc: ZodOpenApiPathsObject = {
-  '/api/reports/:id': {
+  '/api/reports/{id}': {
     post: {
       tags,
       summary: 'Report an auction',
@@ -20,15 +20,20 @@ export const reportsDoc: ZodOpenApiPathsObject = {
         403: { description: "Admins can't post the report" }
       }
     },
-    put: {
+    get: {
       tags,
-      summary: 'Acknowledge report',
-      requestParams: { path: z.object({ id: z.string() }) },
+      summary: 'Get report details',
+      requestParams: {
+        path: z.object({ id: z.string() })
+      },
       responses: {
-        200: { description: 'Report acknowledged successfully' },
-        400: { description: 'Report is already responded' },
-        401: { description: 'User is not authroized' },
-        403: { description: 'Only admins can respond to report' }
+        200: {
+          description: 'Report details fetched successfully',
+          content: { 'application/json': { schema: z.object({ report: responseReportSchema }) } }
+        },
+        401: {
+          description: 'Report does not exist or the report does not belong to the requested user'
+        }
       }
     }
   },
@@ -51,6 +56,20 @@ export const reportsDoc: ZodOpenApiPathsObject = {
             }
           }
         }
+      }
+    }
+  },
+  '/api/reports/{id}/response': {
+    post: {
+      tags,
+      summary: 'Acknowledge report',
+      requestParams: { path: z.object({ id: z.string() }) },
+      requestBody: { content: { 'application/json': { schema: responseReportSchema } } },
+      responses: {
+        200: { description: 'Report acknowledged successfully' },
+        400: { description: 'Report is already responded' },
+        401: { description: 'User is not authroized' },
+        403: { description: 'Only admins can respond to report' }
       }
     }
   }

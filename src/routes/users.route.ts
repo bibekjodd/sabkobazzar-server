@@ -4,7 +4,7 @@ import {
   queryUsers,
   requestAccountVerificationOtp,
   updateProfile,
-  verifyUser
+  verifyUserAccount
 } from '@/controllers/users.controller';
 import { Router } from 'express';
 
@@ -13,7 +13,6 @@ export const usersRoute = router;
 
 router.route('/').get(queryUsers);
 router.route('/profile').get(getProfile).put(updateProfile);
-router.get('/verify', requestAccountVerificationOtp);
-router.put('/verify', verifyUser);
-
+router.post('/otp/request', requestAccountVerificationOtp);
+router.post('/otp/verify', verifyUserAccount);
 router.route('/:id').get(getUserDetails);

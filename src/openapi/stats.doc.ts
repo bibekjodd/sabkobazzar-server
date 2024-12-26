@@ -1,3 +1,4 @@
+import { getAuctionsStatsSchema } from '@/dtos/stats.dto';
 import { z } from 'zod';
 import { ZodOpenApiPathsObject } from 'zod-openapi';
 
@@ -8,7 +9,8 @@ const responseAuctionsStats = z.object({
       completed: z.number(),
       cancelled: z.number(),
       date: z.string(),
-      revenue: z.number()
+      revenue: z.number(),
+      interests: z.number()
     })
   )
 });
@@ -19,6 +21,7 @@ export const statsDoc: ZodOpenApiPathsObject = {
     get: {
       tags,
       summary: 'Get auctions stats',
+      requestParams: { query: getAuctionsStatsSchema },
       responses: {
         200: {
           summary: 'Auctions stats fetched successfully',

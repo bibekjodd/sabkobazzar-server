@@ -12,32 +12,38 @@ export const getNotifications = handleAsync<
   { cursor: string | undefined; notifications: ResponseNotification[] }
 >(async (req, res) => {
   if (!req.user) throw new UnauthorizedException();
-  const { limit, cursor, sort } = getNotificationsQuerySchema.parse(req.query);
+  const query = getNotificationsQuerySchema.parse(req.query);
   const result = await db
     .select()
     .from(notifications)
     .where(
       and(
         eq(notifications.userId, req.user.id),
-        cursor && sort === 'desc'
+        query.cursor && query.sort === 'desc'
           ? or(
-              lt(notifications.createdAt, cursor.value),
-              and(eq(notifications.createdAt, cursor.value), lt(notifications.id, cursor.id))
+              lt(notifications.createdAt, query.cursor.value),
+              and(
+                eq(notifications.createdAt, query.cursor.value),
+                lt(notifications.id, query.cursor.id)
+              )
             )
           : undefined,
-        cursor && sort === 'asc'
+        query.cursor && query.sort === 'asc'
           ? or(
-              gt(notifications.createdAt, cursor.value),
-              and(eq(notifications.createdAt, cursor.value), gt(notifications.id, cursor.id))
+              gt(notifications.createdAt, query.cursor.value),
+              and(
+                eq(notifications.createdAt, query.cursor.value),
+                gt(notifications.id, query.cursor.id)
+              )
             )
           : undefined
       )
     )
     .orderBy((t) => {
-      if (sort === 'asc') return [asc(t.createdAt), asc(t.id)];
+      if (query.sort === 'asc') return [asc(t.createdAt), asc(t.id)];
       return [desc(t.createdAt), desc(t.id)];
     })
-    .limit(limit);
+    .limit(query.limit);
 
   const lastResult = result[result.length - 1];
   let cursorResponse: string | undefined = undefined;
