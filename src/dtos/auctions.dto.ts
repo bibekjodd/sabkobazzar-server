@@ -147,3 +147,8 @@ export const searchInviteUsersSchema = z.object({
   limit: z.preprocess((val) => Number(val) || undefined, z.number().min(1).max(100).default(20)),
   page: z.preprocess((val) => Number(val) || undefined, z.number().min(1).default(1))
 });
+
+export const joinAutionSchema = z.object({
+  successUrl: z.string().url('Invalid success url'),
+  cancelUrl: z.string().url('Invalid cancel url')
+});

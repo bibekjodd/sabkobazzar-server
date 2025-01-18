@@ -22,9 +22,11 @@ import { notificationsRoute } from './routes/notifications.route';
 import { reportsRoute } from './routes/reports.route';
 import { statsRoute } from './routes/stats.route';
 import { usersRoute } from './routes/users.route';
+import { webhooksRoute } from './routes/webhooks.route';
 
 const app = express();
 validateEnv();
+app.use('/api/webhooks', express.text({ type: 'application/json' }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 if (env.NODE_ENV === 'development') {
@@ -56,6 +58,7 @@ app.get(
 app.use('/api/auth', authRoute);
 app.use('/api/users', usersRoute);
 app.use('/api/auctions', auctionsRoute);
+app.use('/api/webhooks', webhooksRoute);
 app.use('/api/notifications', notificationsRoute);
 app.use('/api/events', eventsRoute);
 app.use('/api/stats', statsRoute);

@@ -58,6 +58,7 @@ export const findAuctionDetails = async ({
       auction.winner = winner;
       auction.winnerId = winner.id;
       auction.finalBid = winner.amount;
+      auction.status = 'completed';
       db.update(auctions)
         .set({ winnerId: winner.id, finalBid: winner.amount, status: 'completed' })
         .where(eq(auctions.id, auctionId))

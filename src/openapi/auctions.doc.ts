@@ -4,6 +4,7 @@ import { responseUserSchema } from '@/db/users.schema';
 import {
   cancelAuctionSchema,
   getBidsQuerySchema,
+  joinAutionSchema,
   placeBidSchema,
   queryAuctionsSchema,
   registerAuctionSchema,
@@ -120,8 +121,12 @@ export const auctionsDoc: ZodOpenApiPathsObject = {
       requestParams: {
         path: z.object({ id: z.string() }).openapi({ description: 'Auction id' })
       },
+      requestBody: { content: { 'application/json': { schema: joinAutionSchema } } },
       responses: {
-        200: { description: 'Joined auction successfully' },
+        200: {
+          description: 'User can join the auction and is ready to checkout',
+          content: { 'application/json': { schema: z.object({ checkoutSessionId: z.string() }) } }
+        },
         400: { description: 'Auction is already cancelled or completed' },
         401: { description: 'User is not authenticated' },
         403: { description: "Admins can't join the auction" },

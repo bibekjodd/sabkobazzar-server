@@ -27,7 +27,22 @@ export const sendMessage = handleAsync<{ id: string }, { message: string }>(asyn
 
   const auctionId = req.params.id;
   await validateParticipant({ userId: req.user.id, auctionId });
-  const { text, emoji } = sendMessageSchema.parse(req.body);
-  onSendMessage(auctionId, { text, emoji });
+  const data = sendMessageSchema.parse(req.body);
+
+  onSendMessage(auctionId, {
+    data,
+    user: {
+      id: req.user.id,
+      name: req.user.name,
+      email: req.user.email,
+      authSource: req.user.authSource,
+      createdAt: req.user.createdAt,
+      image: req.user.image,
+      isVerified: req.user.isVerified,
+      lastOnline: req.user.lastOnline,
+      phone: req.user.phone,
+      role: req.user.role
+    }
+  });
   return res.json({ message: 'Message sent successfully' });
 });

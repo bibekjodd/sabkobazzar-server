@@ -57,21 +57,13 @@ export const getNotifications = handleAsync<
 export const readNotifications = handleAsync<unknown, { message: string }>(async (req, res) => {
   if (!req.user) throw new UnauthorizedException();
 
-  const currentDate = new Date().toISOString();
   await db
-    .select({ id: notifications.id })
-    .from(notifications)
-    .where(and(eq(notifications.userId, req.user.id), gt(notifications.createdAt, currentDate)))
-    .execute()
-    .then((result) => {
-      db.update(users)
-        .set({
-          lastNotificationReadAt: currentDate,
-          totalUnreadNotifications: result.length
-        })
-        .where(eq(users.id, req.user?.id || ''))
-        .execute();
-    });
+    .update(users)
+    .set({
+      lastNotificationReadAt: new Date().toISOString(),
+      totalUnreadNotifications: 0
+    })
+    .where(eq(users.id, req.user?.id || ''));
 
   return res.json({ message: 'Notifications read successfully' });
 });

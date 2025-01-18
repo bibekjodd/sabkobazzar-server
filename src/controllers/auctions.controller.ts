@@ -2,11 +2,13 @@ import { db } from '@/db';
 import { auctions, ResponseAuction, selectAuctionsSnapshot } from '@/db/auctions.schema';
 import { bids, ResponseBid, selectBidSnapshot } from '@/db/bids.schema';
 import { interests } from '@/db/interests.schema';
+import { kvs } from '@/db/kvs.schema';
 import { participants, ParticipationStatus } from '@/db/participants.schema';
 import { ResponseUser, selectUserSnapshot, User, users } from '@/db/users.schema';
 import {
   cancelAuctionSchema,
   getBidsQuerySchema,
+  joinAutionSchema,
   placeBidSchema,
   queryAuctionsSchema,
   registerAuctionSchema,
@@ -21,6 +23,7 @@ import {
   NotFoundException,
   UnauthorizedException
 } from '@/lib/exceptions';
+import { stripe } from '@/lib/stripe';
 import { encodeCursor, formatPrice } from '@/lib/utils';
 import { handleAsync } from '@/middlewares/handle-async';
 import {
@@ -298,60 +301,123 @@ export const getAuctionParticipants = handleAsync<{ id: string }, { participants
   }
 );
 
-export const joinAuction = handleAsync<
-  { id: string },
-  { auction: ResponseAuction; message: string }
->(async (req, res) => {
-  if (!req.user) throw new UnauthorizedException();
-  if (req.user.role === 'admin') throw new ForbiddenException("Admins can't join the auction");
+export type CheckoutMetadata = {
+  userId: string;
+  auctionId: string;
+};
+export const joinAuction = handleAsync<{ id: string }, { checkoutSessionId: string }>(
+  async (req, res) => {
+    if (!req.user) throw new UnauthorizedException();
+    if (req.user.role === 'admin') throw new ForbiddenException("Admins can't join the auction");
 
-  const auctionId = req.params.id;
-  const auction = await findAuctionDetails({ auctionId, userId: req.user.id });
+    const auctionId = req.params.id;
+    const { successUrl, cancelUrl } = joinAutionSchema.parse(req.body);
 
-  if (!auction) throw new NotFoundException('Auction does not exist');
-  if (auction.ownerId === req.user.id)
-    throw new ForbiddenException('User is is the host of the auction');
-  if (auction.participationStatus === 'joined')
-    throw new BadRequestException('You have already joined the auction');
-  if (auction.participationStatus === 'kicked')
-    throw new BadRequestException('You are already kicked from the auction');
-  if (auction.isInviteOnly && auction.participationStatus === 'rejected')
-    throw new BadRequestException('You have already rejected the invitation');
-  if (auction.isInviteOnly && auction.participationStatus !== 'invited')
-    throw new BadRequestException('Only invited users can join the auction');
+    const auctionCheckoutSessionKey = `auction-${auctionId}-checkout-session`;
 
-  if (auction.status === 'cancelled') throw new BadRequestException('Auction is already cancelled');
-  if (auction.status === 'completed') throw new BadRequestException('Auction is aleady completed');
-  if (Date.now() > new Date(auction.startsAt).getTime())
-    throw new BadRequestException('Auction has already started');
+    const [auction, sessionInfo] = await Promise.all([
+      findAuctionDetails({ auctionId, userId: req.user.id }),
 
-  if (auction.totalParticipants >= auction.maxBidders)
-    throw new BadRequestException('Auction has already reached the max participants limit');
+      db
+        .select()
+        .from(kvs)
+        .where(eq(kvs.key, auctionCheckoutSessionKey))
+        .limit(1)
+        .execute()
+        .then((res) => res[0])
+    ]);
 
-  if (!auction.participationStatus) {
-    await db.insert(participants).values({ userId: req.user.id, auctionId, status: 'joined' });
-  }
-  if (auction.participationStatus === 'invited') {
-    await db
-      .update(participants)
-      .set({ status: 'joined', createdAt: new Date().toISOString() })
-      .where(and(eq(participants.auctionId, auctionId), eq(participants.userId, req.user.id)));
-  }
-  await auctionParticipantNotification({
-    auction: auction,
-    type: 'join',
-    user: req.user
-  });
+    if (!auction) throw new NotFoundException('Auction does not exist');
+    if (auction.ownerId === req.user.id)
+      throw new ForbiddenException('User is is the host of the auction');
+    if (auction.participationStatus === 'joined')
+      throw new BadRequestException('You have already joined the auction');
+    if (auction.participationStatus === 'kicked')
+      throw new BadRequestException('You are already kicked from the auction');
+    if (auction.isInviteOnly && auction.participationStatus === 'rejected')
+      throw new BadRequestException('You have already rejected the invitation');
+    if (auction.isInviteOnly && auction.participationStatus !== 'invited')
+      throw new BadRequestException('Only invited users can join the auction');
 
-  return res.json({
-    message: 'Joined auction successfully',
-    auction: {
-      ...auction,
-      totalParticipants: auction.totalParticipants + 1,
-      participationStatus: 'joined'
+    if (auction.status === 'cancelled')
+      throw new BadRequestException('Auction is already cancelled');
+    if (auction.status === 'completed')
+      throw new BadRequestException('Auction is aleady completed');
+    if (Date.now() > new Date(auction.startsAt).getTime())
+      throw new BadRequestException('Auction has already started');
+
+    if (auction.totalParticipants >= auction.maxBidders)
+      throw new BadRequestException('Auction has already reached the max participants limit');
+
+    if (sessionInfo) {
+      let previousCheckoutSessionId = undefined as string | undefined;
+      if (typeof sessionInfo.value === 'object' && sessionInfo.value) {
+        // @ts-expect-error ...
+        previousCheckoutSessionId = sessionInfo.value.checkoutSessionId;
+      }
+
+      // expire checkout older than a minute
+      if (
+        previousCheckoutSessionId &&
+        sessionInfo.createdAt <= new Date(Date.now() - MILLIS.MINUTE).toISOString()
+      )
+        await stripe.checkout.sessions.expire(previousCheckoutSessionId).catch(() => {});
+
+      // check new checkout
+      if (
+        previousCheckoutSessionId &&
+        sessionInfo.createdAt > new Date(Date.now() - MILLIS.MINUTE).toISOString() &&
+        auction.totalParticipants >= auction.maxBidders - 1
+      ) {
+        await db.delete(kvs).where(eq(kvs.key, auctionCheckoutSessionKey)).execute();
+        throw new BadRequestException('Auction has already reached the max participants limit');
+      }
     }
-  });
-});
+
+    let images: string[] | undefined = undefined;
+    for (const image of [auction.banner, ...(auction.productImages || [])]) {
+      if (!image) continue;
+      if (!images) images = [image];
+      else images.push(image);
+    }
+    if (images?.length === 0) images = undefined;
+
+    const checkoutSession = await stripe.checkout.sessions.create({
+      metadata: { auctionId, userId: req.user.id } satisfies CheckoutMetadata,
+      customer_email: req.user.email,
+      line_items: [
+        {
+          quantity: 1,
+          price_data: {
+            currency: 'npr',
+            unit_amount: auction.minBid * 30,
+            product_data: {
+              name: auction.title,
+              description: 'Pay 30% fee before joining the auction',
+              images
+            }
+          }
+        }
+      ],
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+      mode: 'payment'
+    });
+
+    await db
+      .insert(kvs)
+      .values({ key: auctionCheckoutSessionKey, value: { checkoutSessionId: checkoutSession.id } })
+      .onConflictDoUpdate({
+        target: [kvs.key],
+        set: {
+          createdAt: new Date().toISOString(),
+          value: { checkoutSessionId: checkoutSession.id }
+        }
+      });
+
+    return res.json({ checkoutSessionId: checkoutSession.id });
+  }
+);
 
 export const leaveAuction = handleAsync<{ id: string }, { message: string }>(async (req, res) => {
   if (!req.user) throw new UnauthorizedException();

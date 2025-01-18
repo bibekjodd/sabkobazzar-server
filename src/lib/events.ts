@@ -1,7 +1,7 @@
 import { Bid } from '@/db/bids.schema';
 import { Notification } from '@/db/notifications.schema';
 import { SendMessageSchema } from '@/dtos/events.dto';
-import { User } from '../db/users.schema';
+import { ResponseUser, User } from '../db/users.schema';
 import { pusher } from './pusher';
 
 const EVENTS = {
@@ -24,7 +24,7 @@ export const onLeftAuction = (auctionId: string, data: LeftAuctionResponse) => {
   return pusher.trigger(auctionId, EVENTS.LEFT_AUCTION, data);
 };
 
-type SendMessageResponse = SendMessageSchema;
+type SendMessageResponse = { user: ResponseUser; data: SendMessageSchema };
 export const onSendMessage = (auctionId: string, data: SendMessageResponse) => {
   return pusher.trigger(auctionId, EVENTS.SENT_MESSAGE, data);
 };

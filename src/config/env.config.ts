@@ -39,7 +39,10 @@ const envSchema = z
 
     SMTP_SERVICE: z.string(),
     SMTP_MAIL: z.string(),
-    SMTP_PASS: z.string()
+    SMTP_PASS: z.string(),
+
+    STRIPE_SECRET_KEY: z.string(),
+    STRIPE_SECRET_WEBHOOK_KEY: z.string()
   })
   .readonly();
 
